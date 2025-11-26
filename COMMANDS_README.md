@@ -1,83 +1,59 @@
-# CODLAI CARBOT Library Reference / Kütüphane Referansı
+# CODLAI_CARBOT Library Documentation / Kütüphane Dokümantasyonu
 
-## Introduction / Giriş
-**EN:** The CARBOT library controls a 2-wheel drive car with steering servo. It includes motor control, steering, LED headlights, buzzer, and ESP-NOW communication features.
-**TR:** CARBOT kütüphanesi, direksiyon servolu 2 tekerlekten çekişli bir aracı kontrol eder. Motor kontrolü, direksiyon, LED farlar, buzzer ve ESP-NOW haberleşme özelliklerini içerir.
+**EN:** The `CARBOT` library controls a 2-wheeled vehicle with steering (Ackermann-like).
+**TR:** `CARBOT` kütüphanesi, 2 tekerlekli ve direksiyonlu (Ackermann benzeri) bir aracı kontrol eder.
 
-## Functions / Fonksiyonlar
+### Basic Control / Temel Kontrol
+*   `void begin()`
+    *   **EN:** Initializes the motors and the steering servo.
+    *   **TR:** Motorları ve direksiyon servosunu başlatır.
+*   `void end()`
+    *   **EN:** Stops the motors and detaches the servo.
+    *   **TR:** Motorları durdurur ve servoyu ayırır.
+*   `void moveForward()`
+    *   **EN:** Drives the vehicle forward.
+    *   **TR:** Aracı ileri sürer.
+*   `void moveBackward()`
+    *   **EN:** Drives the vehicle backward.
+    *   **TR:** Aracı geri sürer.
+*   `void stop()`
+    *   **EN:** Stops the motors.
+    *   **TR:** Motorları durdurur.
+*   `void steer(int angle)`
+    *   **EN:** Sets the steering angle (0-180 degrees).
+    *   **TR:** Direksiyon açısını ayarlar (0-180 derece).
+*   `void controlLED(bool state)`
+    *   **EN:** Turns the headlights on/off.
+    *   **TR:** Farları açar/kapatır.
 
-### begin
-**EN:** Initializes the library, configures motor/LED/buzzer pins, and attaches the steering servo.
-**TR:** Kütüphaneyi başlatır, motor/LED/buzzer pinlerini ayarlar ve direksiyon servosunu bağlar.
-**Syntax:** `void begin()`
+### Sound and Music / Ses ve Müzik
+*   `void buzzerPlay(int frequency, int duration)`
+    *   **EN:** Plays a tone.
+    *   **TR:** Ton çalar.
+*   `void istiklalMarsiCal()`
+    *   **EN:** Plays the Turkish National Anthem (İstiklal Marşı).
+    *   **TR:** İstiklal Marşı'nı çalar.
 
-### end
-**EN:** Stops the car, turns off LEDs, and detaches the steering servo.
-**TR:** Aracı durdurur, LED'leri kapatır ve direksiyon servosunu ayırır.
-**Syntax:** `void end()`
-
-### moveForward
-**EN:** Moves the car forward.
-**TR:** Aracı ileri hareket ettirir.
-**Syntax:** `void moveForward()`
-
-### moveBackward
-**EN:** Moves the car backward.
-**TR:** Aracı geri hareket ettirir.
-**Syntax:** `void moveBackward()`
-
-### stop
-**EN:** Stops the car motors.
-**TR:** Araç motorlarını durdurur.
-**Syntax:** `void stop()`
-
-### steer
-**EN:** Sets the steering servo angle (0-180). 90 is usually center.
-**TR:** Direksiyon servo açısını ayarlar (0-180). 90 genellikle merkezdir.
-**Syntax:** `void steer(int angle)`
-
-### controlLED
-**EN:** Turns the headlights on or off.
-**TR:** Farları açar veya kapatır.
-**Syntax:** `void controlLED(bool state)`
-*   `state`: `true` (ON) or `false` (OFF)
-
-### buzzerPlay
-**EN:** Plays a tone at a specific frequency for a specific duration.
-**TR:** Belirli bir frekansta ve sürede bir ton çalar.
-**Syntax:** `void buzzerPlay(int frequency, int duration)`
-
-### istiklalMarsiCal
-**EN:** Plays the Turkish National Anthem melody.
-**TR:** İstiklal Marşı melodisini çalar.
-**Syntax:** `void istiklalMarsiCal()`
-
-### initESPNow
-**EN:** Initializes the ESP-NOW protocol for wireless communication.
-**TR:** Kablosuz haberleşme için ESP-NOW protokolünü başlatır.
-**Syntax:** `void initESPNow()`
-
-### setWiFiChannel
-**EN:** Sets the WiFi channel for ESP-NOW communication.
-**TR:** ESP-NOW haberleşmesi için WiFi kanalını ayarlar.
-**Syntax:** `void setWiFiChannel(int channel)`
-
-### sendESPNow
-**EN:** Sends data to a specific MAC address via ESP-NOW.
-**TR:** ESP-NOW üzerinden belirli bir MAC adresine veri gönderir.
-**Syntax:** `void sendESPNow(const uint8_t *macAddr, const uint8_t *data, int len)`
-
-### registerOnRecv
-**EN:** Registers a callback function to handle received ESP-NOW data.
-**TR:** Alınan ESP-NOW verilerini işlemek için bir geri çağırma (callback) fonksiyonu kaydeder.
-**Syntax:** `void registerOnRecv(esp_now_recv_cb_t cb)`
-
-### serialStart
-**EN:** Starts serial communication at the specified baud rate.
-**TR:** Seri haberleşmeyi belirtilen baud hızında başlatır.
-**Syntax:** `void serialStart(int baudrate)`
-
-### serialWrite
-**EN:** Writes data to the serial port (Overloaded for String, int, float, bool).
-**TR:** Seri porta veri yazar (String, int, float, bool için aşırı yüklenmiştir).
-**Syntax:** `void serialWrite(data)`
+### Communication / İletişim
+*   `void serialStart(int baudrate)`
+    *   **EN:** Starts the serial port.
+    *   **TR:** Seri portu başlatır.
+*   `void serialWrite(...)`
+    *   **EN:** Writes data to the serial port.
+    *   **TR:** Seri porta veri yazar.
+*   **ESP-NOW**:
+    *   `void initESPNow()`
+        *   **EN:** Initializes ESP-NOW.
+        *   **TR:** ESP-NOW başlatır.
+    *   `void setWiFiChannel(int channel)`
+        *   **EN:** Sets the channel.
+        *   **TR:** Kanal ayarlar.
+    *   `void sendESPNow(...)`
+        *   **EN:** Sends data.
+        *   **TR:** Veri gönderir.
+    *   `void registerOnRecv(...)`
+        *   **EN:** Registers the data reception function.
+        *   **TR:** Veri alma fonksiyonunu kaydeder.
+    *   `void startListening()`
+        *   **EN:** Starts listening for data.
+        *   **TR:** Veri dinlemeyi başlatır.
