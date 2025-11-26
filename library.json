@@ -1,5 +1,5 @@
 {
-  "name": "CODROB_CARBOT",
+  "name": "CODLAI_CARBOT",
   "version": "1.0.0",
   "description": "CODLAI - CARBOT Library for controlling robotic car movements. Visit www.codlai.com for more information. / CODLAI - CARBOT Kütüphanesi, robotik araç hareketlerini kontrol etmek için geliştirilmiştir. Daha fazla bilgi için www.codlai.com adresini ziyaret edin.",
   "keywords": [
@@ -21,7 +21,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/CODLAI-Technologies-INC/CODROB_CARBOT"
+    "url": "https://github.com/CODLAI-Technologies-INC/CODLAI_CARBOT"
   },
   "export": {
     "include": [
@@ -48,6 +48,6 @@
     "examples/MINIBOT_CARBOT_ESP_NOW_Slave_Control",
     "examples/MINIBOT_CARBOT_Store_Demo_Mode"
   ],
-  "homepage": "https://github.com/CODLAI-Technologies-INC/CODROB_CARBOT",
+  "homepage": "https://github.com/CODLAI-Technologies-INC/CODLAI_CARBOT",
   "dependencies": {}
 }
