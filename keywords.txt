@@ -1,0 +1,29 @@
+#######################################
+# Syntax Coloring Map For CODLAI_CARBOT
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+CARBOT	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+end	KEYWORD2
+moveForward	KEYWORD2
+moveBackward	KEYWORD2
+stop	KEYWORD2
+steer	KEYWORD2
+controlLED	KEYWORD2
+buzzerPlay	KEYWORD2
+istiklalMarsiCal	KEYWORD2
+serialStart	KEYWORD2
+serialWrite	KEYWORD2
+initESPNow	KEYWORD2
+setWiFiChannel	KEYWORD2
+sendESPNow	KEYWORD2
+registerOnRecv	KEYWORD2
