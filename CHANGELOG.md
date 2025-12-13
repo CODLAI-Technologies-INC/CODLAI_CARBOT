@@ -2,6 +2,10 @@
 
 # CODLAI ERA (New Models)
 
+## [1.0.3] - 2025-03-09
+### Fixed
+- PlatformIO yeniden yayını için sürüm numarası artırıldı.
+
 ## [1.0.0] - 2025-03-04
 ### Added
 - **Rebranding**: Transitioned from CODROB to CODLAI.
