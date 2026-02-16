@@ -26,6 +26,20 @@
     *   **EN:** Turns the headlights on/off.
     *   **TR:** Farları açar/kapatır.
 
+### Ultrasonic Sensor / Ultrasonik Sensor
+*   `void enableUltrasonic(int echoPin = -1, int trigPin = -1)`
+    *   **EN:** Enables ultrasonic mode. Shared pins auto-disable LED/buzzer and print warnings.
+    *   **TR:** Ultrasonik modu açar. Paylasilan pinlerde LED/buzzer otomatik kapanir ve uyari basilir.
+*   `void disableUltrasonic()`
+    *   **EN:** Disables ultrasonic mode and restores LED/buzzer control.
+    *   **TR:** Ultrasonik modu kapatir ve LED/buzzer kontrolunu geri getirir.
+*   `float readUltrasonicCM(unsigned long timeout = 30000)`
+    *   **EN:** Auto-enables ultrasonic if needed and returns distance in cm, or -1 on timeout.
+    *   **TR:** Gerekirse otomatik açar ve cm dondurur, zaman asiminda -1 verir.
+*   `bool isUltrasonicActive() const`
+    *   **EN:** Reports whether ultrasonic mode is active.
+    *   **TR:** Ultrasonik modun aktif olup olmadigini bildirir.
+
 ### Sound and Music / Ses ve Müzik
 *   `void buzzerPlay(int frequency, int duration)`
     *   **EN:** Plays a tone.

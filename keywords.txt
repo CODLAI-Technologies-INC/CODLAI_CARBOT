@@ -20,6 +20,10 @@ stop	KEYWORD2
 steer	KEYWORD2
 controlLED	KEYWORD2
 buzzerPlay	KEYWORD2
+enableUltrasonic	KEYWORD2
+disableUltrasonic	KEYWORD2
+readUltrasonicCM	KEYWORD2
+isUltrasonicActive	KEYWORD2
 istiklalMarsiCal	KEYWORD2
 serialStart	KEYWORD2
 serialWrite	KEYWORD2

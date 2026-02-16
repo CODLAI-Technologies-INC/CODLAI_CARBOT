@@ -15,6 +15,19 @@ This library is specially designed and produced by the CODLAI developer team to 
 
 ---
 
+## Ultrasonic Sensor (Shared Pins)
+The ultrasonic sensor shares the LED and buzzer pins by default:
+- **ESP8266**: echo=GPIO4 (LED), trig=GPIO5 (buzzer)
+- **ESP32**: echo=GPIO26 (LED), trig=GPIO25 (buzzer)
+
+Behavior:
+- `readUltrasonicCM()` automatically enables ultrasonic mode if it is off.
+- If ultrasonic is active on shared pins and you call LED/buzzer, ultrasonic is disabled automatically.
+- If ultrasonic is enabled on shared pins, LED/buzzer are disabled automatically.
+- Every conflict prints a bilingual warning on Serial (EN + TR).
+
+---
+
 ## Using with Arduino IDE  
 
 ### Installation  
@@ -41,6 +54,19 @@ Bu kütüphane CODLAI geliştirici ekibi tarafından CARBOT ürününü kontrol 
 2. Menü çubuğundan **"Sketch" -> "Include Library" -> "Manage Libraries..."** seçeneğine gidin.  
 3. Arama kutusuna **"CARBOT"** yazın.  
 4. CARBOT kütüphanesini bulun ve **"Install"** düğmesine tıklayarak kurulumu tamamlayın.  
+
+---
+
+## Ultrasonik Sensör (Paylaşılan Pinler)
+Varsayılan olarak ultrasonik sensör LED ve buzzer pinlerini paylaşır:
+- **ESP8266**: echo=GPIO4 (LED), trig=GPIO5 (buzzer)
+- **ESP32**: echo=GPIO26 (LED), trig=GPIO25 (buzzer)
+
+Davranış:
+- `readUltrasonicCM()` çağrıldığında ultrasonik mod kapalıysa otomatik açılır.
+- Ultrasonik mod (paylaşılan pinlerde) açıkken LED/buzzer çağrılırsa ultrasonik otomatik kapanır.
+- Ultrasonik açıldığında LED/buzzer otomatik devre dışı kalır.
+- Her çakışmada seri porta İngilizce ve Türkçe uyarı basılır.
 
 ---
 

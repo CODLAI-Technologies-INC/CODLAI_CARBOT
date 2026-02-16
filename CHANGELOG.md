@@ -2,6 +2,14 @@
 
 # CODLAI ERA (New Models)
 
+## [1.0.4] - 2026-02-16
+### Added
+- Automatic ultrasonic/LED/buzzer conflict management with bilingual warnings.
+- `readUltrasonicCM` now auto-enables ultrasonic mode when needed.
+
+### Changed
+- Ultrasonic mode only disables LED/buzzer when shared pins are used.
+
 ## [1.0.3] - 2025-03-09
 ### Fixed
 - PlatformIO yeniden yayını için sürüm numarası artırıldı.

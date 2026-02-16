@@ -60,6 +60,10 @@ public:
   void steer(int angle);                        // Steer the car (0-180 degrees) / Direksiyonu verilen açıya çevir
   void controlLED(bool state);                  // Control the car's LED headlights / Farları kontrol et
   void buzzerPlay(int frequency, int duration); // Play a sound with the buzzer / Buzzer çal
+  void enableUltrasonic(int echoPin = -1, int trigPin = -1); // Use ultrasonic sensor (shared pins auto disable LED/buzzer) / Ultrasonik sensörü kullan (paylaşılan pinlerde LED/buzzer otomatik kapanır)
+  void disableUltrasonic();                     // Restore LED/buzzer control after ultrasonic mode / Ultrasonik moddan sonra LED/buzzer kontrolünü geri getir
+  float readUltrasonicCM(unsigned long timeout = 30000); // Auto-enable if needed, return cm or -1 / Gerekirse otomatik açar, cm veya -1 döner
+  bool isUltrasonicActive() const;               // Check if ultrasonic mode is currently enabled / Ultrasonik modun açık olup olmadığını kontrol et
   void istiklalMarsiCal();                      // Play the National Anthem melody / İstiklal Marşı'nı çal
 
   /*********************************** Serial Port ***********************************
@@ -110,8 +114,13 @@ private:
   int _motorPin2;
   int _buzzerPin;
   int _ledPin;
+  int _ultrasonicEchoPin = -1; // Echo pin shared with the LED / LED ile paylaşılan Echo pini
+  int _ultrasonicTrigPin = -1; // Trig pin shared with the buzzer / Buzzer ile paylaşılan Trig pini
+  bool _ultrasonicActive = false; // Tracks when ultrasonic mode reuses LED/buzzer pins / Ultrasonik mod LED/buzzer pinlerini yeniden kullandığında takip edilir
 
   void configurePins(); // Configure pins based on the platform / Platforma göre pinleri ayarla
+  bool ultrasonicUsesSharedPins() const; // Check if ultrasonic pins overlap LED/buzzer pins / Ultrasonik pinler LED/buzzer ile cakisiyor mu
+  void warnSharedPins(const char *messageEn, const char *messageTr); // Print bilingual warning / Iki dilli uyari yaz
 };
 
 /*********************************** IMPLEMENTATION ***********************************/
@@ -132,6 +141,8 @@ inline CARBOT::CARBOT()
   _buzzerPin = 5;
   _ledPin = 4;
 #endif
+  _ultrasonicEchoPin = _ledPin;
+  _ultrasonicTrigPin = _buzzerPin;
 }
 
 // Initialize the car bot / Araç botunu başlat
@@ -163,8 +174,11 @@ inline void CARBOT::configurePins()
 {
   pinMode(_motorPin1, OUTPUT);
   pinMode(_motorPin2, OUTPUT);
-  pinMode(_buzzerPin, OUTPUT);
-  pinMode(_ledPin, OUTPUT);
+  if (!_ultrasonicActive || !ultrasonicUsesSharedPins())
+  {
+    pinMode(_buzzerPin, OUTPUT);
+    pinMode(_ledPin, OUTPUT);
+  }
 }
 
 // Move the car forward / Aracı ileri hareket ettir
@@ -197,12 +211,26 @@ inline void CARBOT::steer(int angle)
 // Control the car's LED headlights / Farları kontrol et
 inline void CARBOT::controlLED(bool state)
 {
+  if (_ultrasonicActive && ultrasonicUsesSharedPins()) {
+    warnSharedPins(
+      "Warning: LED requested; ultrasonic disabled due to shared pins.",
+      "Uyari: LED istendi; paylasilan pinler nedeniyle ultrasonik devre disi."
+    );
+    disableUltrasonic();
+  }
   digitalWrite(_ledPin, state ? LOW : HIGH); // LED is active LOW / LED aktif LOW
 }
 
 // Play a sound with the buzzer / Buzzer çal
 inline void CARBOT::buzzerPlay(int frequency, int duration)
 {
+  if (_ultrasonicActive && ultrasonicUsesSharedPins()) {
+    warnSharedPins(
+      "Warning: Buzzer requested; ultrasonic disabled due to shared pins.",
+      "Uyari: Buzzer istendi; paylasilan pinler nedeniyle ultrasonik devre disi."
+    );
+    disableUltrasonic();
+  }
 #if defined(ESP32)
   analogWrite(_buzzerPin, frequency);
   delay(duration);
@@ -212,6 +240,71 @@ inline void CARBOT::buzzerPlay(int frequency, int duration)
   delay(duration);
   noTone(_buzzerPin);
 #endif
+}
+
+inline void CARBOT::enableUltrasonic(int echoPin, int trigPin)
+{
+  if (echoPin < 0) {
+    echoPin = _ledPin;
+  }
+  if (trigPin < 0) {
+    trigPin = _buzzerPin;
+  }
+  _ultrasonicEchoPin = echoPin;
+  _ultrasonicTrigPin = trigPin;
+  if (!_ultrasonicActive && ultrasonicUsesSharedPins()) {
+    warnSharedPins(
+      "Warning: Ultrasonic enabled; LED/Buzzer disabled due to shared pins.",
+      "Uyari: Ultrasonik acildi; paylasilan pinler nedeniyle LED/Buzzer devre disi."
+    );
+  }
+  pinMode(_ultrasonicEchoPin, INPUT);
+  pinMode(_ultrasonicTrigPin, OUTPUT);
+  digitalWrite(_ultrasonicTrigPin, LOW);
+  _ultrasonicActive = true;
+}
+
+inline void CARBOT::disableUltrasonic()
+{
+  _ultrasonicActive = false;
+  configurePins();
+}
+
+inline bool CARBOT::isUltrasonicActive() const
+{
+  return _ultrasonicActive;
+}
+
+inline float CARBOT::readUltrasonicCM(unsigned long timeout)
+{
+  if (!_ultrasonicActive) {
+    enableUltrasonic(_ultrasonicEchoPin, _ultrasonicTrigPin);
+  }
+  if (_ultrasonicEchoPin < 0 || _ultrasonicTrigPin < 0) {
+    return -1;
+  }
+  digitalWrite(_ultrasonicTrigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(_ultrasonicTrigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(_ultrasonicTrigPin, LOW);
+  unsigned long duration = pulseIn(_ultrasonicEchoPin, HIGH, timeout);
+  if (duration == 0) {
+    return -1;
+  }
+  return duration / 58.0f;
+}
+
+inline bool CARBOT::ultrasonicUsesSharedPins() const
+{
+  return (_ultrasonicEchoPin == _ledPin || _ultrasonicEchoPin == _buzzerPin ||
+          _ultrasonicTrigPin == _ledPin || _ultrasonicTrigPin == _buzzerPin);
+}
+
+inline void CARBOT::warnSharedPins(const char *messageEn, const char *messageTr)
+{
+  Serial.println(messageEn);
+  Serial.println(messageTr);
 }
 
 // Play the National Anthem / İstiklal Marşı'nı çal
