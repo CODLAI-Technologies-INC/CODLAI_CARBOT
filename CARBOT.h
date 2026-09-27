@@ -39,12 +39,14 @@
 #ifndef CODLAI_ESPNOW_MESSAGE_DEFINED
 #define CODLAI_ESPNOW_MESSAGE_DEFINED
 typedef struct {
-  uint8_t deviceType; // 1 = Armbot, 2 = Carbot
+  uint8_t deviceType; // 1=Armbot, 2=Carbot, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji
   int axis1;
   int axis2;
   int axis3;
   int gripper;
   uint8_t action; // 0=None, 1=Horn, 2=Note
+  char text[32];  // espNowSendText: metin icerigi / espNowSendNumber: sayinin adi (name) - CARBOT'un kendisi bu alanlari kullanmiyor, sadece IOTBOT/MINIBOT/ROLEBOT ile ayni yapi boyutunu (sizeof) korumak icin burada
+  float value;    // espNowSendNumber: sayinin degeri (value) - yukaridaki gibi, sadece uyumluluk icin
 } CodlaiESPNowMessage;
 #endif
 

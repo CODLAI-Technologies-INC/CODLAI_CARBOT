@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-27
+### Changed
+- `CodlaiESPNowMessage` yapisina IOTBOT/MINIBOT/ROLEBOT 1.7.0/1.5.0/1.5.0'daki basit ESP-NOW mesajlasma ozelligiyle (`espNowSendText`/`espNowSendNumber`) UYUMLU KALMASI icin `char text[32]` ve `float value` alanlari eklendi. CARBOT'un kendi ESP-NOW kullanimini (ARM/CAR kontrolu) ETKILEMEZ - sadece ayni sketch icinde IOTBOT/MINIBOT/ROLEBOT ile birlikte kullanildiginda yapi boyutunun (sizeof) tutarli kalmasini saglar. Yeni bir CARBOT fonksiyonu eklenmedi.
+
 ## [1.1.0] - 2026-09-27
 ### Added
 - Yeni ornek: `CARBOT_Guard_Mode_Example.ino` - arac yerinde durup on ultrasonik sensorle etrafini gozetler; bir seyin yaklastigini algilarsa farlari yakip sonduru, korna calar ve kisa bir sure geri kacar (bekci arac modu).
