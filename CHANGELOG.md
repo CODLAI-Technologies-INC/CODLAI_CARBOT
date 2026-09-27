@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-09-27
+### Changed
+- ESP-NOW alicisi (`startListening()`) artik eski (kutuphanenin onceki surumlerinde daha kucuk olan) `CodlaiESPNowMessage` boyutundaki paketleri de kabul ediyor - bkz. CODLAI_IOTBOT 1.7.1'deki ayni degisiklik.
+
 ## [1.1.1] - 2026-09-27
 ### Changed
 - `CodlaiESPNowMessage` yapisina IOTBOT/MINIBOT/ROLEBOT 1.7.0/1.5.0/1.5.0'daki basit ESP-NOW mesajlasma ozelligiyle (`espNowSendText`/`espNowSendNumber`) UYUMLU KALMASI icin `char text[32]` ve `float value` alanlari eklendi. CARBOT'un kendi ESP-NOW kullanimini (ARM/CAR kontrolu) ETKILEMEZ - sadece ayni sketch icinde IOTBOT/MINIBOT/ROLEBOT ile birlikte kullanildiginda yapi boyutunun (sizeof) tutarli kalmasini saglar. Yeni bir CARBOT fonksiyonu eklenmedi.
