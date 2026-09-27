@@ -54,10 +54,15 @@ public:
   CARBOT();                                     // Constructor / Yapıcı
   void begin();                                 // Initialize the car bot / Araç botunu başlat
   void end();                                   // Stop the car bot and detach servos / Araç botunu durdur ve servoları ayır
-  void moveForward();                           // Move the car forward / Aracı ileri hareket ettir
-  void moveBackward();                          // Move the car backward / Aracı geri hareket ettir
+  void moveForward(int speed = 255);            // Move the car forward at a given PWM speed (0-255, default = full speed) / Aracı verilen PWM hızında (0-255, varsayılan tam hız) ileri hareket ettir
+  void moveBackward(int speed = 255);           // Move the car backward at a given PWM speed (0-255, default = full speed) / Aracı verilen PWM hızında (0-255, varsayılan tam hız) geri hareket ettir
   void stop();                                  // Stop the car / Aracı durdur
   void steer(int angle);                        // Steer the car (0-180 degrees) / Direksiyonu verilen açıya çevir
+  void servoTestPose(bool highPose);            // Servo test pose / Servo test pozu
+  void dcMotorTestForward();                    // DC motor test forward / DC motor test ileri
+  void hornLedTest(bool active);                // Horn+LED test state / Korna+LED test durumu
+  void standardModeForward();                   // Standard forward mode / Standart ileri mod
+  void storeModeStep(uint8_t step);             // Execute one store mode step / Store mod adımı çalıştır
   void controlLED(bool state);                  // Control the car's LED headlights / Farları kontrol et
   void buzzerPlay(int frequency, int duration); // Play a sound with the buzzer / Buzzer çal
   void enableUltrasonic(int echoPin = -1, int trigPin = -1); // Use ultrasonic sensor (shared pins auto disable LED/buzzer) / Ultrasonik sensörü kullan (paylaşılan pinlerde LED/buzzer otomatik kapanır)
@@ -117,6 +122,9 @@ private:
   int _ultrasonicEchoPin = -1; // Echo pin shared with the LED / LED ile paylaşılan Echo pini
   int _ultrasonicTrigPin = -1; // Trig pin shared with the buzzer / Buzzer ile paylaşılan Trig pini
   bool _ultrasonicActive = false; // Tracks when ultrasonic mode reuses LED/buzzer pins / Ultrasonik mod LED/buzzer pinlerini yeniden kullandığında takip edilir
+  static const int _buzzerLedcChannel = 14;
+  static const int _motor1LedcChannel = 12; // ESP32: motorPin1 icin ayrilmis PWM kanali / dedicated PWM channel for motorPin1
+  static const int _motor2LedcChannel = 13; // ESP32: motorPin2 icin ayrilmis PWM kanali / dedicated PWM channel for motorPin2
 
   void configurePins(); // Configure pins based on the platform / Platforma göre pinleri ayarla
   bool ultrasonicUsesSharedPins() const; // Check if ultrasonic pins overlap LED/buzzer pins / Ultrasonik pinler LED/buzzer ile cakisiyor mu
@@ -159,6 +167,25 @@ inline void CARBOT::begin()
 #endif
 
   _steeringServo.write(90); // Set steering to the initial position / Direksiyonu başlangıç pozisyonuna ayarla
+
+#if defined(ESP32)
+  pinMode(_buzzerPin, OUTPUT);
+  ledcSetup(_buzzerLedcChannel, 2000, 8);
+  ledcAttachPin(_buzzerPin, _buzzerLedcChannel);
+
+  // Degisken hiz (PWM) icin motor pinlerini LEDC kanallarina bagla / attach
+  // the motor pins to LEDC channels for variable-speed (PWM) control.
+  ledcSetup(_motor1LedcChannel, 20000, 8); // 20kHz: motor uguldamasini onlemek icin duyulabilir aralik disinda / above the audible range to avoid motor whine
+  ledcAttachPin(_motorPin1, _motor1LedcChannel);
+  ledcSetup(_motor2LedcChannel, 20000, 8);
+  ledcAttachPin(_motorPin2, _motor2LedcChannel);
+#elif defined(ESP8266)
+  // ESP8266'nin analogWrite() varsayilan araligi 0-1023'tur; 0-255 (standart
+  // Arduino PWM) skalasiyla calisabilmek icin araligi burada sabitliyoruz.
+  // ESP8266's analogWrite() defaults to a 0-1023 range; fix it here so we
+  // can work with the standard Arduino 0-255 PWM scale.
+  analogWriteRange(255);
+#endif
 }
 
 // Stop the car bot and detach servos / Araç botunu durdur ve servoları ayır
@@ -181,31 +208,91 @@ inline void CARBOT::configurePins()
   }
 }
 
-// Move the car forward / Aracı ileri hareket ettir
-inline void CARBOT::moveForward()
+// Move the car forward at a given PWM speed (0-255) / Aracı verilen PWM hızında ileri hareket ettir
+inline void CARBOT::moveForward(int speed)
 {
-  digitalWrite(_motorPin1, HIGH);
-  digitalWrite(_motorPin2, LOW);
+  speed = constrain(speed, 0, 255);
+#if defined(ESP32)
+  ledcWrite(_motor2LedcChannel, 0);
+  ledcWrite(_motor1LedcChannel, speed);
+#elif defined(ESP8266)
+  analogWrite(_motorPin2, 0);
+  analogWrite(_motorPin1, speed);
+#endif
 }
 
-// Move the car backward / Aracı geri hareket ettir
-inline void CARBOT::moveBackward()
+// Move the car backward at a given PWM speed (0-255) / Aracı verilen PWM hızında geri hareket ettir
+inline void CARBOT::moveBackward(int speed)
 {
-  digitalWrite(_motorPin1, LOW);
-  digitalWrite(_motorPin2, HIGH);
+  speed = constrain(speed, 0, 255);
+#if defined(ESP32)
+  ledcWrite(_motor1LedcChannel, 0);
+  ledcWrite(_motor2LedcChannel, speed);
+#elif defined(ESP8266)
+  analogWrite(_motorPin1, 0);
+  analogWrite(_motorPin2, speed);
+#endif
 }
 
 // Stop the car / Aracı durdur
 inline void CARBOT::stop()
 {
-  digitalWrite(_motorPin1, LOW);
-  digitalWrite(_motorPin2, LOW);
+#if defined(ESP32)
+  ledcWrite(_motor1LedcChannel, 0);
+  ledcWrite(_motor2LedcChannel, 0);
+#elif defined(ESP8266)
+  analogWrite(_motorPin1, 0);
+  analogWrite(_motorPin2, 0);
+#endif
 }
 
 // Steer the car (0-180 degrees) / Direksiyonu verilen açıya çevir
 inline void CARBOT::steer(int angle)
 {
   _steeringServo.write(constrain(angle, 0, 180));
+}
+
+inline void CARBOT::servoTestPose(bool highPose)
+{
+  steer(highPose ? 180 : 0);
+}
+
+inline void CARBOT::dcMotorTestForward()
+{
+  moveForward();
+}
+
+inline void CARBOT::hornLedTest(bool active)
+{
+  if (active) {
+    buzzerPlay(1000, 80);
+    controlLED(true);
+  } else {
+    controlLED(false);
+  }
+}
+
+inline void CARBOT::standardModeForward()
+{
+  moveForward();
+}
+
+inline void CARBOT::storeModeStep(uint8_t step)
+{
+  switch (step % 4) {
+    case 0:
+      moveForward();
+      break;
+    case 1:
+      steer(45);
+      break;
+    case 2:
+      moveBackward();
+      break;
+    default:
+      stop();
+      break;
+  }
 }
 
 // Control the car's LED headlights / Farları kontrol et
@@ -232,9 +319,10 @@ inline void CARBOT::buzzerPlay(int frequency, int duration)
     disableUltrasonic();
   }
 #if defined(ESP32)
-  analogWrite(_buzzerPin, frequency);
+  ledcSetup(_buzzerLedcChannel, frequency, 8);
+  ledcWriteTone(_buzzerLedcChannel, frequency);
   delay(duration);
-  analogWrite(_buzzerPin, 0);
+  ledcWriteTone(_buzzerLedcChannel, 0);
 #elif defined(ESP8266)
   tone(_buzzerPin, frequency, duration);
   delay(duration);

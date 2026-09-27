@@ -2,6 +2,17 @@
 
 # CODLAI ERA (New Models)
 
+## [Unreleased]
+
+## [1.1.0] - 2026-09-27
+### Added
+- Yeni ornek: `CARBOT_Guard_Mode_Example.ino` - arac yerinde durup on ultrasonik sensorle etrafini gozetler; bir seyin yaklastigini algilarsa farlari yakip sonduru, korna calar ve kisa bir sure geri kacar (bekci arac modu).
+- **Degisken hiz (PWM) destegi**: `moveForward(int speed = 255)` ve `moveBackward(int speed = 255)` artik bir PWM hiz degeri (0-255) kabul ediyor - onceden motor pinlerine sadece `digitalWrite(HIGH/LOW)` yapiliyordu, yani araç sadece tam hizda ileri/geri gidebiliyordu. ESP32'de motor pinleri LEDC kanallarina (20kHz, motor uguldamasini onlemek icin), ESP8266'da `analogWrite()`'a (0-255 araligina sabitlenmis) baglandi. Varsayilan deger 255 (tam hiz) oldugu icin eski `moveForward()`/`moveBackward()` cagrilari davranis degistirmeden calismaya devam ediyor - geriye donuk uyumlu. Mobil uygulama/kumanda tarafinda gercek analog gaz/joystick kontrolu icin gerekliydi.
+
+### Fixed
+- `MINIBOT_CARBOT_ESP_NOW_Slave_Control.ino`, gelen `axis2` degerini (>100 ileri, <80 geri seklinde) sabit esiklerle 3 duruma indirgeyip sadece tam hizda calistiriyordu; bu deger aslinda isaretli bir hiz (-255..255, bkz. `IOTBOT_Armbot_and_Carbot_Wireless_Control.ino`) olarak hesaplaniyordu ama kullanilmiyordu. Artik gercek PWM hizini `moveForward(speed)`/`moveBackward(speed)`'e iletiyor.
+- `IOTBOT_Armbot_and_Carbot_Wired_Control.ino`'daki joystick ile CARBOT surme mantigi da ayni sekilde artik sabit tam hiz yerine joystick sapmasina orantili degisken hiz gonderiyor.
+
 ## [1.0.4] - 2026-02-16
 ### Added
 - Automatic ultrasonic/LED/buzzer conflict management with bilingual warnings.

@@ -23,6 +23,20 @@ void setup() {
   
   minibot.initESPNow();
   minibot.setWiFiChannel(1); // Master ile aynı kanalda olmalı / Must be on same channel as Master
+  
+  // Add broadcast peer to send data back
+#if defined(ESP8266)
+  esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
+  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_COMBO, 1, NULL, 0);
+#elif defined(ESP32)
+  uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 1;
+  peerInfo.encrypt = false;
+  esp_now_add_peer(&peerInfo);
+#endif
 
   minibot.startListening();
   minibot.serialWrite("Ready to receive commands! / Komutları almaya hazır!");
@@ -33,7 +47,15 @@ void setup() {
   carbot.buzzerPlay(3000, 100);
 }
 
+// Actions (Horn, LED) share pins with Ultrasonic.
+// When horn or LED is needed, the ultrasonic is disabled automatically.
+// Bu yüzden master tarafindan korna vs isteniyorsa mesafe olcmeyi bekletelim.
+static unsigned long lastDistSendMs = 0;
+bool actionRequested = false;
+
 void loop() {
+  unsigned long now = millis();
+
   if (minibot.newData)
   {
     minibot.newData = false;
@@ -41,54 +63,71 @@ void loop() {
     if (minibot.receivedData.deviceType != 2) // 2 = Carbot
       return; 
 
-    // Steering / Direksiyon (Axis 1)
-    // Assuming Axis 1 sends 0-180 or similar. 
-    // If Joystick sends 0-4095, we might need mapping. 
-    // But usually Master sends mapped values. Let's assume 0-180 for now or map it.
-    // If Master sends raw joystick (0-4095), we map: map(val, 0, 4095, 0, 180).
-    // Let's assume the Master sends ready-to-use values or we map here.
-    // For safety, let's constrain.
-    // If the value is around 1500 (center), it might be raw.
-    // Let's assume standard servo range 0-180.
     carbot.steer(minibot.receivedData.axis1);
 
-    // Motor (Axis 2)
-    // Assuming Axis 2 is speed/direction.
-    // If > threshold -> Forward
-    // If < threshold -> Backward
-    // Else -> Stop
-    // Let's assume center is 90 or 0? 
-    // If it's mapped to servo angle (0-180), center is 90.
-    // If it's raw (0-4095), center is 2048.
-    // If it's -255 to 255, center is 0.
-    
-    // Based on previous struct "int speed", it was likely -255 to 255.
-    // Let's assume axis2 is passed as -255 to 255 or similar.
-    // Or maybe 0-180 where > 100 is FWD, < 80 is BWD.
-    
+    // axis2: isaretli hiz degeri (-255..255) - negatif geri, pozitif ileri,
+    // buyukluk PWM hizi (bkz. IOTBOT_Armbot_and_Carbot_Wireless_Control.ino'daki
+    // ayni kural). / axis2: signed speed value (-255..255) - negative is
+    // backward, positive is forward, magnitude is the PWM speed (same
+    // convention as IOTBOT_Armbot_and_Carbot_Wireless_Control.ino).
     int speedVal = minibot.receivedData.axis2;
-    
-    // Simple logic assuming 0-180 range (like servo)
-    if (speedVal > 100) {
-      carbot.moveForward();
-    } else if (speedVal < 80) {
-      carbot.moveBackward();
+    if (speedVal > 10) {
+      carbot.moveForward(speedVal);
+    } else if (speedVal < -10) {
+      carbot.moveBackward(-speedVal);
     } else {
       carbot.stop();
     }
 
+    actionRequested = false;
+
     // Actions
     if (minibot.receivedData.action == 1)
     {
+      actionRequested = true;
+      // Korna basiliyken mesafe sensorunu kapali tut
+      if (carbot.isUltrasonicActive()) carbot.disableUltrasonic();
       carbot.buzzerPlay(1000, 50); // Horn
     }
     else if (minibot.receivedData.action == 2)
     {
+      actionRequested = true;
+      if (carbot.isUltrasonicActive()) carbot.disableUltrasonic();
       carbot.controlLED(true); // Lights On
     }
     else if (minibot.receivedData.action == 3)
     {
-      carbot.controlLED(false); // Lights Off
+      // Işıkları Kapat (Lights Off)
+      // Ultrasonik modda LED zaten sönük durumdadır.
+      // Bu yüzden gereksiz yere ultrasoniği "kapat-aç" yapmamak için sadece ultrasonik aktif değilse farı kapat.
+      if (!carbot.isUltrasonicActive()) {
+        carbot.controlLED(false); // Lights Off
+      }
     }
+  }
+
+  // Handle Ultrasonic Data Sending (Send every ~200ms)
+  if (!actionRequested && (now - lastDistSendMs >= 300)) {
+    if (!carbot.isUltrasonicActive()) {
+      carbot.enableUltrasonic();
+    }
+    float dist = carbot.readUltrasonicCM();
+    if (dist >= 0) {
+      CodlaiESPNowMessage msg;
+      msg.deviceType = 2; 
+      msg.axis1 = 0;
+      msg.axis2 = 0;
+      msg.axis3 = (int)dist; // Use axis3 for distance
+      msg.gripper = 0;
+      msg.action = 0;
+
+      uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+#if defined(ESP8266)
+      esp_now_send(broadcastAddress, (uint8_t *)&msg, sizeof(msg));
+#elif defined(ESP32)
+      esp_now_send(broadcastAddress, (uint8_t *)&msg, sizeof(msg));
+#endif
+    }
+    lastDistSendMs = now;
   }
 }

@@ -86,8 +86,8 @@ If you'd like to contribute, please send a **Pull Request** to the GitHub reposi
 ---
 
 # Lisans / License  
-Bu kütüphane **2024 Yılında Samed KAYA** tarafından lisanslanmıştır. Detaylar için LICENSE dosyasına bakınız.  
-This library is licensed by **Samed KAYA in 2024**. See the LICENSE file for details.  
+Bu kütüphane **2024 Yılında CODLAI Teknoloji** tarafından lisanslanmıştır. Detaylar için LICENSE dosyasına bakınız.  
+This library is licensed by **CODLAI Teknoloji in 2024**. See the LICENSE file for details.  
 
 ---
 

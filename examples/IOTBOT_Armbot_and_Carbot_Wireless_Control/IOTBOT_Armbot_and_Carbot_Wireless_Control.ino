@@ -1,4 +1,4 @@
-/*
+﻿/*
  * IOTBOT Armbot and Carbot Wireless Control (ESP-NOW Master)
  */
 
@@ -14,15 +14,6 @@ uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 // Data Structures
 CodlaiESPNowMessage armData;
 CodlaiESPNowMessage carData;
-
-// Connection Status
-// volatile bool lastSendStatus = false; // Now handled by library
-
-// Callback when data is sent
-// void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status)
-// {
-//   lastSendStatus = (status == ESP_NOW_SEND_SUCCESS);
-// }
 
 // Variables for Logic
 static int joyXCenter = 2048;
@@ -51,6 +42,12 @@ static const unsigned long ENC_DEBOUNCE_MS = 150;
 static unsigned long bootMs0 = 0;
 static const unsigned long ENC_BOOT_GUARD_MS = 800;
 
+// Joystick Button RTOS State for LED control
+static uint8_t joyBtnState = 0; // 0=IDLE, 1=DEBOUNCE_PRESS, 2=PRESSED, 3=WAIT_RELEASE
+static unsigned long joyBtnTimer = 0;
+static const unsigned long JOY_LONG_PRESS_MS = 2000;
+static const unsigned long JOY_DEBOUNCE_MS = 30;
+
 // Armbot State
 static int armRotAngle = 90;      // Axis1
 static int armShoulderAngle = 90; // Axis2
@@ -68,7 +65,6 @@ static const int JOY_STEP_DIV = 300;
 static bool ledState = true;
 static bool ledAutoMode = true;
 static bool b3Prev = false;
-static bool b2Prev = false;
 static unsigned long b3LastChange = 0;
 static const unsigned long B3_DEBOUNCE_MS = 50;
 static unsigned long lastBeepMs = 0;
@@ -85,11 +81,11 @@ void showCarbotScreen()
   iotbot.lcdWriteCR(0, 1, "LED:");
   iotbot.lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);
   iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
-  iotbot.lcdWriteCR(12, 1, iotbot.lastSendStatus ? "CON:OK " : "CON:ERR");
+  iotbot.lcdWriteFixedTxt(12, 1, iotbot.lastSendStatus ? "CON:*  " : "CON:*/ ", 7);
 
-  iotbot.lcdWriteFixedTxt(2, 2, "X:Steer  Y:Drive", 16);
+  iotbot.lcdWriteFixedTxt(0, 2, "Mesafe: --- cm  ", 16);
 
-  iotbot.lcdWriteCR(0, 3, "B1:Horn  ENC:MODE");
+  iotbot.lcdWriteCR(0, 3, "JBtn:LED B3:Horn");
 }
 
 void showArmbotScreen()
@@ -100,13 +96,13 @@ void showArmbotScreen()
   iotbot.lcdWriteFixedTxt(4, 1, "", 3);
   iotbot.lcdWriteCR(8, 1, "SHO:");
   iotbot.lcdWriteFixedTxt(12, 1, "", 3);
-  iotbot.lcdWriteCR(19, 0, iotbot.lastSendStatus ? "*" : "!");
+  iotbot.lcdWriteFixedTxt(18, 0, iotbot.lastSendStatus ? "*" : "*/", 2);
 
   iotbot.lcdWriteCR(0, 2, "ELB:");
   iotbot.lcdWriteFixedTxt(4, 2, "", 3);
   iotbot.lcdWriteCR(8, 2, "GRP:");
   iotbot.lcdWriteFixedTxt(12, 2, "", 3);
-  iotbot.lcdWriteCR(0, 3, "B1:Horn  B2:Note");
+  iotbot.lcdWriteCR(0, 3, "B1/B2 devredisi");
 }
 
 void updateModeSelectLine()
@@ -131,22 +127,67 @@ void setup()
   iotbot.serialStart(115200);
   iotbot.serialWrite("IOTBOT Wireless Control System Starting...");
 
-  iotbot.initESPNow();
-  iotbot.setWiFiChannel(1);
-  // esp_now_register_send_cb(OnDataSent); // Handled by library now
+  iotbot.lcdClear();
+  iotbot.lcdWriteCR(0, 0, "Kalibrasyon?");
+  iotbot.lcdWriteCR(0, 1, "B3=Evet, ENC=Gec");
 
-  if (!iotbot.addBroadcastPeer(1))
-  {
-    iotbot.serialWrite("Failed to add peer");
-    return;
+  bool doCalibration = false;
+  unsigned long startMillis = millis();
+  bool b3WasPressed = iotbot.button3Read();
+  bool encWasPressed = (digitalRead(ENCODER_BUTTON_PIN) == LOW);
+
+  while(millis() - startMillis < 5000){
+    bool b3PressedNow = iotbot.button3Read();
+    bool encPressedNow = (digitalRead(ENCODER_BUTTON_PIN) == LOW);
+
+    // Require an actual press transition, protecting against stuck states
+    if (b3PressedNow && !b3WasPressed) {
+      doCalibration = true;
+      break;
+    }
+    if (encPressedNow && !encWasPressed) {
+      break;
+    }
+
+    b3WasPressed = b3PressedNow;
+    encWasPressed = encPressedNow;
+
+    int timeLeft = 5 - ((millis() - startMillis) / 1000);
+    iotbot.lcdWriteFixedTxt(14, 1, (String(timeLeft) + "s ").c_str(), 4);
+    delay(50);
   }
 
-  iotbot.lcdClear();
-  iotbot.lcdWriteCR(0, 0, "Calibrating...");
-  iotbot.lcdWriteCR(0, 1, "Do not touch!");
-  delay(2000); // Wait for power to stabilize
+  if (doCalibration) {
+    iotbot.lcdClear();
+    iotbot.lcdWriteCR(0, 0, "Joystick Birak");
+    iotbot.lcdWriteCR(0, 1, "Sonra B3'e Bas");
+    delay(500); // debounce B3 from previous selection
+    while (!iotbot.button3Read()) { delay(50); }
+    long xSum = 0, ySum = 0;
+    for(int i=0; i<50; i++){
+       xSum += iotbot.joystickXRead();
+       ySum += iotbot.joystickYRead();
+       delay(10);
+    }
+    joyXCenter = xSum / 50;
+    joyYCenter = ySum / 50;
 
-  iotbot.calibrateJoystick(joyXCenter, joyYCenter, 50); // Take 50 samples
+    Serial.print("Joy X: "); Serial.print(joyXCenter);
+    Serial.print(" Joy Y: "); Serial.println(joyYCenter);
+  } else {
+    iotbot.lcdClear();
+    iotbot.lcdWriteCR(0, 0, "Calibrating...");
+    iotbot.lcdWriteCR(0, 1, "Do not touch!");
+    delay(1000);
+    long xSum = 0, ySum = 0;
+    for(int i=0; i<50; i++){
+       xSum += iotbot.joystickXRead();
+       ySum += iotbot.joystickYRead();
+       delay(10);
+    }
+    joyXCenter = xSum / 50;
+    joyYCenter = ySum / 50;
+  }
 
   // Sanity check: Handle X and Y independently
   if (abs(joyXCenter - 2048) > 1000)
@@ -168,6 +209,16 @@ void setup()
   armData.deviceType = 1;
   carData.deviceType = 2;
 
+  iotbot.initESPNow();
+  iotbot.setWiFiChannel(1);
+  iotbot.startListening(); 
+
+  if (!iotbot.addBroadcastPeer(1))
+  {
+    iotbot.serialWrite("Failed to add peer");
+    return;
+  }
+
   iotbot.serialWrite("Setup Complete.");
 }
 
@@ -175,6 +226,29 @@ void loop()
 {
   unsigned long now = millis();
   bool encPressed = (digitalRead(ENCODER_BUTTON_PIN) == LOW);
+
+  static int carbotDistance = 999;
+  static bool distanceWarningActive = false;
+  static unsigned long lastDistanceBlinkMs = 0;
+  static bool distanceBlinkState = false;
+
+  if (iotbot.newData) {
+    iotbot.newData = false;
+    if (appState == APP_RUN && currentMode == MODE_CARBOT) {
+      if (iotbot.receivedData.deviceType == 2) {
+         carbotDistance = iotbot.receivedData.axis3;
+         if (!distanceWarningActive) {
+           char buf[17];
+           if (carbotDistance > 300) {
+             snprintf(buf, sizeof(buf), "Mesafe: Serbest ");
+           } else {
+             snprintf(buf, sizeof(buf), "Mesafe: %3d cm  ", carbotDistance);
+           }
+           iotbot.lcdWriteFixedTxt(0, 2, buf, 16);
+         }
+      }
+    }
+  }
 
   // --- Mode Selection ---
   if (appState == APP_SELECT)
@@ -226,10 +300,6 @@ void loop()
   {
     if (!armCalibrated)
     {
-      // Re-calibrate specifically for Armbot if needed, or just use global center
-      // The original code had a specific calibration here. Let's keep it simple and use global center for now
-      // or re-run calibration.
-      // Actually, let's just use the global center to avoid delay.
       joyDeadZoneX = 300;
       joyDeadZoneY = 300;
       armCalibrated = true;
@@ -298,39 +368,28 @@ void loop()
     armData.axis2 = armShoulderAngle;
     armData.axis3 = armElbowAngle;
     armData.gripper = armGripAngle;
-    armData.action = 0;
-    if (iotbot.button1Read())
-      armData.action = 1;
-    else if (iotbot.button2Read())
-      armData.action = 2;
-
+    armData.action = 0; // Actions disabled in armbot for now without B1/B2
+    
     if (now - lastSendMs >= SEND_INTERVAL_MS)
     {
       iotbot.sendESPNow(broadcastAddress, (uint8_t *)&armData, sizeof(armData));
       lastSendMs = now;
-      iotbot.lcdWriteCR(19, 0, iotbot.lastSendStatus ? "*" : "!");
+      iotbot.lcdWriteFixedTxt(18, 0, iotbot.lastSendStatus ? "*" : "*/", 2);
     }
   }
   // --- CARBOT Logic ---
   else
   {
-    int xRaw = iotbot.joystickXRead();
     int yRaw = iotbot.joystickYRead();
     int ldrRaw = iotbot.ldrRead();
-    int dx = xRaw - joyXCenter;
     int dy = yRaw - joyYCenter;
 
-    // Steering
-    int angle = 90;
-    if (abs(dx) > DEADZONE)
-    {
-      float range = (dx > 0) ? (4095.0f - joyXCenter) : (float)joyXCenter;
-      float norm = (float)dx / range;
-      angle = 90 + (int)(norm * 45.0f);
-      angle = constrain(angle, 45, 135);
-    }
-    carData.axis1 = angle;
-    iotbot.lcdWriteFixed(17, 0, angle, 3);
+    // Steering: Use Potentiometer instead of Joystick X
+    int potRaw = iotbot.potentiometerRead();
+    int steerAngle = map(potRaw, 0, 4095, 135, 45); // Reversed
+    steerAngle = constrain(steerAngle, 45, 135);
+    carData.axis1 = steerAngle;
+    iotbot.lcdWriteFixed(17, 0, steerAngle, 3);
 
     // Speed
     // Carbot expects 0-180 range: <80 Backward, 80-100 Stop, >100 Forward
@@ -339,56 +398,127 @@ void loop()
     {
       // Backward (0 to 80)
       speed = map(dy, -DEADZONE, -joyYCenter, 80, 0);
+      distanceWarningActive = false; // Clear warning when moving back or stopping
     }
     else if (dy > DEADZONE)
     {
       // Forward (100 to 180)
-      speed = map(dy, DEADZONE, 4095 - joyYCenter, 100, 180);
+      if (carbotDistance < 10) {
+         speed = 90; // Stop! Block forward movement.
+         distanceWarningActive = true;
+         
+         // Blink logic & Sound for Warning
+         if (now - lastDistanceBlinkMs > 250) {
+            distanceBlinkState = !distanceBlinkState;
+            if (distanceBlinkState) {
+               iotbot.lcdWriteFixedTxt(0, 2, "   !! DUR !!    ", 16);
+               iotbot.buzzerPlay(2500, 100);
+            } else {
+               char buf[17];
+               snprintf(buf, sizeof(buf), "Mesafe: %3d cm  ", carbotDistance);
+               iotbot.lcdWriteFixedTxt(0, 2, buf, 16);
+            }
+            lastDistanceBlinkMs = now;
+         }
+      } else {
+         speed = map(dy, DEADZONE, 4095 - joyYCenter, 100, 180);
+         distanceWarningActive = false;
+      }
     }
+    else 
+    {
+      distanceWarningActive = false;
+    }
+    
     speed = constrain(speed, 0, 180);
     carData.axis2 = speed;
 
-    // LED
+    // LED - Joystick & B3 Button Handling
     const int LDR_THRESHOLD = 1200;
     bool autoShouldOn = (ldrRaw < LDR_THRESHOLD);
 
-    bool b2Now = iotbot.button2Read();
-    if (b2Now && !b2Prev && (now - lastBeepMs) > BEEP_DEBOUNCE_MS)
-    {
-      ledAutoMode = !ledAutoMode;
-      iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
-      lastBeepMs = now;
-    }
-    b2Prev = b2Now;
-
+    // joystickButtonRead() is usually LOW when pressed for INPUT_PULLUP
+    bool joyBtnRaw = !iotbot.joystickButtonRead(); // true when physically pressed down
     bool b3Now = iotbot.button3Read();
-    if (!ledAutoMode && b3Now && !b3Prev && (now - b3LastChange) > B3_DEBOUNCE_MS)
-    {
-      ledState = !ledState;
-      iotbot.lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);
-      b3LastChange = now;
+    
+    static bool comboHandled = false;
+    static unsigned long comboTimer = 0;
+    
+    // Check simultaneous press for Auto Mode (Combination)
+    if (joyBtnRaw && b3Now) {
+        if (!comboHandled && (now - comboTimer > JOY_DEBOUNCE_MS)) {
+            // Both pressed and debounced
+            ledAutoMode = !ledAutoMode;
+            iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
+            iotbot.buzzerPlay(1500, 100);
+            comboHandled = true;
+        }
+    } else {
+        comboTimer = now; // Reset debounce if not both pressed
+        if (!joyBtnRaw && !b3Now) {
+            comboHandled = false; // Reset combo lock only when BOTH are released
+        }
     }
-    b3Prev = b3Now;
+    
+    // Single JoyBtn press for LED (Debounced, triggers on release)
+    switch(joyBtnState) {
+       case 0: // IDLE
+          if (joyBtnRaw) {
+             joyBtnState = 1;
+             joyBtnTimer = now;
+          }
+          break;
+       case 1: // DEBOUNCE_PRESS
+          if (now - joyBtnTimer > JOY_DEBOUNCE_MS) {
+             if (joyBtnRaw) {
+                joyBtnState = 2; // confirmed press
+             } else {
+                joyBtnState = 0; // glitch
+             }
+          }
+          break;
+       case 2: // PRESSED
+          if (!joyBtnRaw) {
+             // Released - toggle LED ONLY if we didn't just use it for a combo
+             if (!comboHandled) {
+                ledState = !ledState;
+                iotbot.lcdWriteFixedTxt(4, 1, ledState ? "ON " : "OFF", 3);
+             }
+             joyBtnState = 3; // WAIT_RELEASE
+             joyBtnTimer = now;
+          }
+          break;
+       case 3: // WAIT_RELEASE
+          if (!joyBtnRaw) {
+             if (now - joyBtnTimer > JOY_DEBOUNCE_MS) {
+                joyBtnState = 0; // back to IDLE
+             }
+          } else {
+             joyBtnTimer = now; // reset timer if bouncing
+          }
+          break;
+    }
 
     if (ledAutoMode)
     {
       ledState = autoShouldOn;
-      iotbot.lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);
+      iotbot.lcdWriteFixedTxt(4, 1, ledState ? "ON " : "OFF", 3);
     }
 
     carData.action = 0;
-    if (iotbot.button1Read())
+    // B3 acts as horn ONLY if it's not being used as a combo key
+    if (b3Now && !comboHandled)  
       carData.action = 1;
     else if (ledState)
-      carData.action = 2;
+      carData.action = 2; // LED ON
     else
-      carData.action = 3;
+      carData.action = 3; // LED OFF
 
     if (now - lastSendMs >= SEND_INTERVAL_MS)
     {
       iotbot.sendESPNow(broadcastAddress, (uint8_t *)&carData, sizeof(carData));
       lastSendMs = now;
-      iotbot.lcdWriteCR(12, 1, iotbot.lastSendStatus ? "CON:OK " : "CON:ERR");
+      iotbot.lcdWriteFixedTxt(12, 1, iotbot.lastSendStatus ? "CON:*  " : "CON:*/ ", 7);
     }
   }
 }
