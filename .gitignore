@@ -4,3 +4,6 @@
 *.log
 .DS_Store
 Thumbs.db
+
+# PlatformIO kurulum kaydi - kutuphane surumunu yanlis gosterir / PlatformIO install record - shows a wrong library version
+.piopm

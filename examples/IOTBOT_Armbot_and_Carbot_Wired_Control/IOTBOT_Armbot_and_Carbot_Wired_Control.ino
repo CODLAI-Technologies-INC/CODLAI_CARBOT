@@ -1,3 +1,25 @@
+/*
+ * IOTBOT Armbot and Carbot Wired Control
+ *
+ * TR: IOTBOT, CARBOT'u ya da ARMBOT'u KABLOYLA dogrudan surer. Iki robot da ayni
+ * P1-P5 soketlerini (IO25, 26, 27, 32, 33) kullanir: ayni anda TEK robot takilir,
+ * mod degistirirken kabloyu da degistirin. Kablosuz surum icin:
+ * IOTBOT_Armbot_and_Carbot_Wireless_Control.ino
+ * EN: The IOTBOT drives CARBOT or ARMBOT directly over a CABLE. Both robots use
+ * the same P1-P5 sockets (IO25, 26, 27, 32, 33): plug in ONE robot at a time and
+ * swap the cable when you switch modes. Wireless version:
+ * IOTBOT_Armbot_and_Carbot_Wireless_Control.ino
+ *
+ * Kontroller / Controls:
+ *   Mod / mode: Joystick sol/sag + encoder'a bas; calisirken encoder'a bas = mod degistir
+ *   CARBOT: Joystick X = direksiyon / steering, Joystick Y = hiz / speed,
+ *           B1 = korna (nota potansiyometreden) / horn (note from the pot),
+ *           B2 = far otomatik/elle / lights auto/manual, B3 = far ac/kapa (elle) / lights toggle (manual)
+ *   ARMBOT: Joystick X = govde / base, Joystick Y = omuz / shoulder, Pot = dirsek / elbow,
+ *           Encoder = kiskac / gripper, B3 = kiskac ac/kapa / gripper open/close,
+ *           B1 = korna / horn, B2 = nota / note, Joystick butonu = magaza (demo) modu / store (demo) mode
+ */
+
 #include <IOTBOT.h>
 #include <CARBOT.h>
 #include <ARMBOT.h>
@@ -5,6 +27,25 @@
 IOTBOT iotbot;
 CARBOT carBot;
 ARMBOT armbot;
+
+// Tip tanimlari EN USTTE olmali: Arduino (ve PlatformIO) fonksiyon prototiplerini
+// dosyadaki ilk fonksiyonun onune ekler; bu tipler daha asagida tanimlanirsa
+// "'B12State' does not name a type" hatasi alinir. / Type definitions must be AT
+// THE TOP: Arduino (and PlatformIO) inserts function prototypes before the first
+// function in the file; if these types are defined further down you get
+// "'B12State' does not name a type".
+struct B12State { bool b1; bool b2; int raw; };
+enum Mode
+{
+  MODE_CARBOT = 0,
+  MODE_ARMBOT = 1
+};
+// App state: startup mode selection vs running
+enum AppState
+{
+  APP_SELECT = 0,
+  APP_RUN = 1
+};
 static bool espNowStarted = false;          // ESP-NOW geç başlatma (ADC2 okuma için)
 
 // ADC2 (GPIO15, GPIO4) Wi-Fi çakışmasını hafifletmek için cache + retry mekanizması
@@ -18,7 +59,7 @@ static const unsigned long B12_PERIOD_MS   = 45;  // buton analog okuma sıklı�
 inline int safeReadADC2(int pin, int &cache, int attempts = 6){
   // Birkaç deneme ile düzgün (0..4095 arası ve 0/4095 değil) değer yakalamaya çalış
   for(int i=0;i<attempts;i++){
-    int v = analogRead(pin);
+    int v = iotbot.analogReadPin(pin);
     if(v > 20 && v < 4075){ // makul aralık
       cache = v;
       return cache;
@@ -37,7 +78,6 @@ inline int readJoystickXFiltered(){
   return lastGoodJoyX;
 }
 
-struct B12State { bool b1; bool b2; int raw; };
 inline B12State readB12Filtered(){
   unsigned long now = millis();
   if(now - lastB12ReadMs >= B12_PERIOD_MS){
@@ -70,20 +110,9 @@ static const unsigned long BEEP_DEBOUNCE_MS = 180; // avoid tone spam
 static bool encBtnPrev = false;
 static unsigned long encLastMs = 0;
 static const unsigned long ENC_DEBOUNCE_MS = 150;
-enum Mode
-{
-  MODE_CARBOT = 0,
-  MODE_ARMBOT = 1
-};
 static Mode currentMode = MODE_CARBOT;
 static unsigned long bootMs0 = 0;
 static const unsigned long ENC_BOOT_GUARD_MS = 800; // ignore encoder for first 0.8s
-// App state: startup mode selection vs running
-enum AppState
-{
-  APP_SELECT = 0,
-  APP_RUN = 1
-};
 static AppState appState = APP_SELECT;
 static int modeSelIndex = 0; // 0=CARBOT, 1=ARMBOT
 // Blink state for AUTO warning when pressing B3 in AUTO mode
@@ -108,7 +137,12 @@ static const unsigned long STORE_JOY_DEBOUNCE_MS = 300;
 
 // Debounced joystick button check (returns true on a new press)
 inline bool joystickPressedDebounce(bool &prev, unsigned long &lastMs, unsigned long db=STORE_JOY_DEBOUNCE_MS){
-  bool now = iotbot.joystickButtonRead();
+  // joystickButtonRead() ham pin seviyesini verir: BASILIYKEN LOW (false).
+  // Eskiden ters okunuyordu; ARMBOT moduna girer girmez magaza modu kendiliginden
+  // basliyor, cikis da birakinca oluyordu. / joystickButtonRead() returns the
+  // raw pin level: LOW (false) while PRESSED. It used to be read inverted, so
+  // store mode started by itself on entering ARMBOT mode and exited on release.
+  bool now = !iotbot.joystickButtonRead();
   unsigned long t = millis();
   if(now && !prev && (t - lastMs) > db){ prev = true; lastMs = t; return true; }
   if(!now) prev = false;
@@ -360,14 +394,40 @@ void showModeSelectScreen()
 // Populate NOTE field from potentiometer (used when entering CARBOT)
 // (Merged) initNoteFromPot already defined earlier; remove duplicate.
 
-// Ensure ARMBOT is initialized once and screen fields are filled
+// ARMBOT ve CARBOT ESP32'de AYNI 5 pini kullanir (IO25, 26, 27, 32, 33 = P1-P5),
+// yani ayni sokete takilirlar. Bir robotun servo/PWM baglantilari pinleri tutar;
+// eskiden ARMBOT'a gecip geri donunce CARBOT motorlari ve direksiyonu (pinler
+// hala kol servolarina bagli oldugu icin) bir daha calismiyordu. Her mod
+// degisiminde birini birakip digerini YENIDEN bagliyoruz.
+// / ARMBOT and CARBOT use the SAME 5 pins on the ESP32 (IO25, 26, 27, 32, 33 =
+// P1-P5), so they plug into the same socket. A robot's servo/PWM links hold the
+// pins; after switching to ARMBOT and back, CARBOT's motors and steering used to
+// stay dead (the pins were still routed to the arm servos). On every mode
+// switch we release one robot and RE-attach the other.
+void switchHardwareToArmbot()
+{
+  carBot.stop();
+  carBot.controlLED(false);
+  carBot.end(); // Direksiyon servosunu birak / release the steering servo
+  iotbot.buzzerStop();
+  iotbot.relayWrite(false);
+  armbot.begin(); // Kol servolarini pinlere yeniden bagla / re-attach the arm servos
+  armbotInited = true;
+}
+
+void switchHardwareToCarbot()
+{
+  armbot.buzzerStop();
+  if (armbotInited)
+    armbot.end(); // Kol servolarini birak / release the arm servos
+  iotbot.relayWrite(false);
+  carBot.begin(); // Motor PWM ve direksiyonu yeniden bagla / re-attach motor PWM and steering
+  carBot.controlLED(ledState);
+}
+
+// Fill the ARMBOT screen fields (hardware is attached by switchHardwareToArmbot)
 void ensureArmbotInit()
 {
-  if (!armbotInited)
-  {
-    armbot.begin();
-    armbotInited = true;
-  }
   // Initial field values on ARMBOT screen
   lcdWriteFixed(4, 1, armRotAngle, 3);
   lcdWriteFixed(12, 1, armShoulderAngle, 3);
@@ -430,15 +490,11 @@ void loop()
       }
       else
       {
+        switchHardwareToArmbot();
         showArmbotScreen();
         ensureArmbotInit();
         // Reset calibration flag to trigger fresh calibration
         armCalibrated = false;
-        // Reset sensors/motors safe state when switching to ARMBOT
-        carBot.stop();
-        carBot.controlLED(false);
-        iotbot.buzzerStop();
-        iotbot.relayWrite(false);
       }
       playModeChime(currentMode);
       appState = APP_RUN;
@@ -455,21 +511,16 @@ void loop()
       currentMode = (currentMode == MODE_CARBOT) ? MODE_ARMBOT : MODE_CARBOT;
       if (currentMode == MODE_CARBOT)
       {
+        switchHardwareToCarbot();
         showCarbotScreen();
         initNoteFromPot();
-        // Reset signals safe when switching to CARBOT
-        armbot.buzzerStop();
-        iotbot.relayWrite(false);
       }
       else
       {
+        switchHardwareToArmbot();
         showArmbotScreen();
         ensureArmbotInit();
         armCalibrated = false;
-        carBot.stop();
-        carBot.controlLED(false);
-        iotbot.buzzerStop();
-        iotbot.relayWrite(false);
       }
       playModeChime(currentMode);
       encLastMs = now;
@@ -662,14 +713,19 @@ void loop()
   // Angle display fixed-width (3 chars) at col 16 row 0
   lcdWriteFixed(17, 0, angle, 3);
 
-  // Forward / Backward (inverted per user request)
+  // Forward / Backward (inverted per user request) - degisken hiz (PWM):
+  // deadzone'dan tam sapmaya (2048) kadar 50-255 araligina eslenir.
+  // Forward / Backward (inverted per user request) - variable (PWM) speed:
+  // mapped from the deadzone edge to full deflection (2048) into 50-255.
   if (dy < -DEADZONE)
   {
-    carBot.moveBackward();
+    int speed = constrain(map(-dy, DEADZONE, 2048, 50, 255), 0, 255);
+    carBot.moveBackward(speed);
   }
   else if (dy > DEADZONE)
   {
-    carBot.moveForward();
+    int speed = constrain(map(dy, DEADZONE, 2048, 50, 255), 0, 255);
+    carBot.moveForward(speed);
   }
   else
   {

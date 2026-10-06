@@ -39,7 +39,7 @@
 #ifndef CODLAI_ESPNOW_MESSAGE_DEFINED
 #define CODLAI_ESPNOW_MESSAGE_DEFINED
 typedef struct {
-  uint8_t deviceType; // 1=Armbot, 2=Carbot, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji
+  uint8_t deviceType; // 1=Armbot komutu, 2=Carbot komutu, 3=Carbot telemetrisi (axis3=mesafe cm, -1=bilinmiyor), 4=Armbot sinyali, 10=IOTBOT LDR yayini, 11=IOTBOT sicaklik yayini, 20=basit metin mesaji, 21=basit sayi mesaji, 22-29=REZERVE: editor.codlai.com ozel/eslesmeli mesajlasma bloklari (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; axis1=grup, axis2/axis3=hedef MAC, her zaman yayinla gonderilir, suzgec alicida), 30-39=REZERVE: CODLAI Robotlari Otonom projesi (30 eslesme teklifi, 31 eslesme kabul, 32 mod, 33 durum)
   int axis1;
   int axis2;
   int axis3;
