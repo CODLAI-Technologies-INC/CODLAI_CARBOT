@@ -25,6 +25,13 @@
  * GUVENLIK / SAFETY: 500 ms boyunca komut gelmezse (kumanda kapandi, menzil
  * disi, ARMBOT moduna gecildi) arac DURUR. / If no command arrives for 500 ms
  * (controller off, out of range, switched to ARMBOT mode) the car STOPS.
+ *
+ * Seri port (115200 baud), Türkçe veya İngilizce / Serial port, Turkish or English:
+ *   yardim / help   -> komut listesi / command list
+ *   durum / status  -> mod, kumanda bağlantısı / mode, controller link
+ *   dil / lang      -> dili değiştir / switch language (Türkçe <-> English)
+ * Araç seri porttan sürülmez; kontrol kumandadadır. / The car is not driven from
+ * the serial port; the controller is in charge.
  */
 
 #define USE_ESPNOW
@@ -35,6 +42,11 @@
 
 MINIBOT minibot;
 CARBOT carbot;
+
+// Dil seçimi: true = Türkçe, false = English. Seri porttan "dil" / "lang" ile de değişir.
+// Language: true = Turkish, false = English. Can also be changed with "dil" / "lang".
+bool turkish = true;
+const char *L(const char *tr, const char *en) { return turkish ? tr : en; }
 
 static const uint8_t TYPE_CAR_CMD = 2;
 static const uint8_t TYPE_CAR_TELEMETRY = 3;
@@ -47,12 +59,14 @@ static const unsigned long STORE_STEP_MS = 450;       // Gosteri adim suresi / s
 
 static uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+void printHelp(); // Aşağıda tanımlı / defined below
+
 void setup() {
   minibot.begin();
   minibot.serialStart(115200);
   carbot.begin();
 
-  minibot.serialWrite("Initializing ESP-NOW Slave (Carbot)...");
+  minibot.serialWrite(L("ESP-NOW alıcısı (CARBOT) başlatılıyor...", "Initializing ESP-NOW receiver (CARBOT)..."));
 
   minibot.initESPNow();
   minibot.setWiFiChannel(1); // Master ile aynı kanalda olmalı / Must be on same channel as Master
@@ -70,7 +84,8 @@ void setup() {
 #endif
 
   minibot.startListening();
-  minibot.serialWrite("Ready to receive commands! / Komutları almaya hazır!");
+  minibot.serialWrite(L("Komutları almaya hazır!", "Ready to receive commands!"));
+  printHelp();
 
   // Startup Sound
   carbot.buzzerPlay(2000, 100);
@@ -105,6 +120,79 @@ void runStoreStep() {
     default: carbot.stop(); carbot.controlLED(false); break;
   }
   storeStep++;
+}
+
+// ---------------------------------------------------------------------------
+// Seri komut okuyucu (bloklamaz) / Serial command reader (non-blocking)
+// Seri Monitör'ün satır sonu ayarı ne olursa olsun çalışır (NL, CR, ikisi, hiçbiri).
+// Works with any Serial Monitor line-ending setting (NL, CR, both, none).
+// ---------------------------------------------------------------------------
+String cmdBuffer;
+unsigned long lastCharMs = 0;
+
+// Küçük harfe çevirir ve Türkçe harfleri sadeleştirir: "YARDIM" -> "yardim"
+// Lower-cases and simplifies Turkish letters: "YARDIM" -> "yardim"
+String normalizeCommand(String s) {
+  s.trim();
+  s.replace("İ", "i"); s.replace("I", "i"); s.replace("ı", "i");
+  s.replace("Ş", "s"); s.replace("ş", "s");
+  s.replace("Ğ", "g"); s.replace("ğ", "g");
+  s.replace("Ü", "u"); s.replace("ü", "u");
+  s.replace("Ö", "o"); s.replace("ö", "o");
+  s.replace("Ç", "c"); s.replace("ç", "c");
+  s.toLowerCase();
+  return s;
+}
+
+bool readCommand(String &cmd) {
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    lastCharMs = millis();
+    if (c == '\n' || c == '\r') {
+      if (cmdBuffer.length() == 0) continue;
+      cmd = normalizeCommand(cmdBuffer);
+      cmdBuffer = "";
+      return true;
+    }
+    if (cmdBuffer.length() < 40) cmdBuffer += c;
+  }
+  // "Satır sonu yok" seçiliyse: 150 ms sessizlikten sonra komutu kabul et.
+  // "No line ending" selected: accept the command after 150 ms of silence.
+  if (cmdBuffer.length() > 0 && millis() - lastCharMs > 150) {
+    cmd = normalizeCommand(cmdBuffer);
+    cmdBuffer = "";
+    return true;
+  }
+  return false;
+}
+
+void printHelp() {
+  minibot.serialWrite(L("---- CARBOT ALICI - Komutlar ----", "---- CARBOT RECEIVER - Commands ----"));
+  minibot.serialWrite(L("  yardim : bu liste", "  help   : this list"));
+  minibot.serialWrite(L("  durum  : mod ve kumanda bağlantısı", "  status : mode and controller link"));
+  minibot.serialWrite(L("  dil    : English'e geç", "  lang   : switch to Turkish"));
+  minibot.serialWrite(L("  Araç, IOTBOT kablosuz kumandasıyla (kanal 1) yönetilir.",
+                        "  The car is driven by the IOTBOT wireless controller (channel 1)."));
+}
+
+void handleCommand(const String &cmd) {
+  if (cmd == "yardim" || cmd == "help" || cmd == "?") {
+    printHelp();
+  } else if (cmd == "durum" || cmd == "status") {
+    const char *mode = stoppedByTimeout ? L("durdu (kumanda yok)", "stopped (no controller)")
+                     : storeMode        ? L("mağaza", "store")
+                                        : L("kontrol", "control");
+    String line = String(L("Mod: ", "Mode: ")) + mode;
+    if (lastCommandMs != 0)
+      line += String(L(" | son komut ", " | last command ")) + (millis() - lastCommandMs) + L(" ms önce", " ms ago");
+    minibot.serialWrite(line);
+  } else if (cmd == "dil" || cmd == "lang" || cmd == "language") {
+    turkish = !turkish;
+    minibot.serialWrite(L("Dil: Türkçe", "Language: English"));
+    printHelp();
+  } else {
+    minibot.serialWrite(String(L("Bilinmeyen komut: ", "Unknown command: ")) + cmd + L("  (yardim yazın)", "  (type help)"));
+  }
 }
 
 // 0-180 hiz komutunu harekete cevir / turn the 0-180 speed command into motion
@@ -213,4 +301,10 @@ void loop() {
     msg.axis3 = distanceCm;
     esp_now_send(broadcastAddress, (uint8_t *)&msg, sizeof(msg));
   }
+
+  // Seri komutlar (yalnızca yardım/durum/dil; sürüşü etkilemez)
+  // / Serial commands (help/status/lang only; they don't affect driving)
+  String cmd;
+  if (readCommand(cmd))
+    handleCommand(cmd);
 }

@@ -70,6 +70,26 @@ Davranış:
 
 ---
 
+<!-- EXAMPLES:START -->
+# Examples / Örnekler
+
+**EN:** 7 examples - Robot (7). Every example follows the same rules:
+- **Turkish / English:** `bool turkish = true;` at the top picks the language. Type `lang` (or `dil`) in the Serial Monitor to switch while it runs. Serial, LCD and web texts follow it.
+- **Serial port (115200 baud):** commands work in both languages (`help` = `yardim`, `angle 90` = `aci 90` = `açı 90`) and with any line-ending setting. Type `help` for the list.
+- **Auto / manual:** 4 examples that drive something (motor, servo, relay, LED, buzzer, robot) start in **AUTO** mode with a demo. Press **B3** on IOTBOT, **B1** (GPIO0) on MINIBOT to switch to **MANUAL**. On IOTBOT you drive the car with the joystick/pot, on MINIBOT with serial commands (forward 2, left, stop ...). An actuator command sent from serial also switches to manual.
+- 0 examples need your own settings (WiFi, tokens, keys): fill in the `YOUR_...` placeholders.
+- Each example is in its own folder (`Folder/Folder.ino`), so it shows up under *File > Examples* in the Arduino IDE.
+- `examples/examples.json` lists every example with its board, required modules, summary (TR/EN) and serial commands (used by editor.codlai.com).
+
+**TR:** 7 örnek - Robot (7). Tüm örnekler aynı kurallara uyar:
+- **Türkçe / İngilizce:** En üstteki `bool turkish = true;` dili seçer. Çalışırken Seri Monitör'e `dil` (veya `lang`) yazarak değiştirebilirsiniz. Seri port, LCD ve web metinleri seçilen dili izler.
+- **Seri port (115200 baud):** komutlar iki dilde de çalışır (`yardim` = `help`, `aci 90` = `açı 90` = `angle 90`) ve satır sonu ayarı ne olursa olsun algılanır. Komut listesi için `yardim` yazın.
+- **Otomatik / manuel:** Bir şey süren 4 örnek (motor, servo, röle, LED, buzzer, robot) **OTOMATİK** modda bir gösteriyle başlar. IOTBOT'ta **B3**, MINIBOT'ta **B1** (GPIO0) butonu ile **MANUEL** moda geçersiniz. IOTBOT'ta aracı joystick/pot ile, MINIBOT'ta seri komutlarla (ileri 2, sol, dur ...) sürersiniz. Seri porttan gönderilen bir çalıştırma komutu da manuel moda geçirir.
+- 0 örnek sizin ayarlarınızı ister (WiFi, token, anahtar): `YOUR_...` yer tutucularını doldurun.
+- Her örnek kendi klasöründedir (`Klasör/Klasör.ino`); Arduino IDE'de *Dosya > Örnekler* menüsünde görünür.
+- `examples/examples.json` her örneği kartı, gerektirdiği modüller, özeti (TR/EN) ve seri komutlarıyla listeler (editor.codlai.com kullanır).
+<!-- EXAMPLES:END -->
+
 # Library Structure & Contributing / Kütüphane Yapısı ve Katkıda Bulunma
 This is a lightweight library.
 - **Structure:** Simple class-based structure without complex configuration.

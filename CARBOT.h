@@ -130,13 +130,15 @@ private:
   int _ultrasonicEchoPin = -1; // Echo pin shared with the LED / LED ile paylaşılan Echo pini
   int _ultrasonicTrigPin = -1; // Trig pin shared with the buzzer / Buzzer ile paylaşılan Trig pini
   bool _ultrasonicActive = false; // Tracks when ultrasonic mode reuses LED/buzzer pins / Ultrasonik mod LED/buzzer pinlerini yeniden kullandığında takip edilir
+  bool _warnedUltrasonicOn = false;  // "Ultrasonik acildi" uyarisi yazildi mi (acilista bir kez) / warning printed once per boot
+  bool _warnedUltrasonicOff = false; // "LED/Buzzer istendi" uyarisi yazildi mi (acilista bir kez) / warning printed once per boot
   static const int _buzzerLedcChannel = 14;
   static const int _motor1LedcChannel = 12; // ESP32: motorPin1 icin ayrilmis PWM kanali / dedicated PWM channel for motorPin1
   static const int _motor2LedcChannel = 13; // ESP32: motorPin2 icin ayrilmis PWM kanali / dedicated PWM channel for motorPin2
 
   void configurePins(); // Configure pins based on the platform / Platforma göre pinleri ayarla
   bool ultrasonicUsesSharedPins() const; // Check if ultrasonic pins overlap LED/buzzer pins / Ultrasonik pinler LED/buzzer ile cakisiyor mu
-  void warnSharedPins(const char *messageEn, const char *messageTr); // Print bilingual warning / Iki dilli uyari yaz
+  void warnSharedPins(bool &alreadyWarned, const char *messageEn, const char *messageTr); // Print bilingual warning once / Iki dilli uyariyi bir kez yaz
 };
 
 /*********************************** IMPLEMENTATION ***********************************/
@@ -166,12 +168,11 @@ inline void CARBOT::begin()
 {
   configurePins();
 #if defined(ESP32)
-  _steeringServo.attach(_steeringPin, 500, 2500);
-  // **ESP32 için 1000-2000 µs kullan**
+  _steeringServo.attach(_steeringPin, 500, 2500); // 500-2500 µs darbe genişliği / pulse width
 #elif defined(ESP8266)
   _steeringServo.attach(_steeringPin, 500, 2500);
 #else
-  if (!servo.attach(pin)) // **ESP32 için 1000-2000 µs kullan**
+#error "Unsupported platform! Only ESP32 and ESP8266 are supported."
 #endif
 
   _steeringServo.write(90); // Set steering to the initial position / Direksiyonu başlangıç pozisyonuna ayarla
@@ -307,9 +308,9 @@ inline void CARBOT::storeModeStep(uint8_t step)
 inline void CARBOT::controlLED(bool state)
 {
   if (_ultrasonicActive && ultrasonicUsesSharedPins()) {
-    warnSharedPins(
-      "Warning: LED requested; ultrasonic disabled due to shared pins.",
-      "Uyari: LED istendi; paylasilan pinler nedeniyle ultrasonik devre disi."
+    warnSharedPins(_warnedUltrasonicOff,
+      "Warning: LED/Buzzer requested; ultrasonic disabled due to shared pins (shown once).",
+      "Uyari: LED/Buzzer istendi; paylasilan pinler nedeniyle ultrasonik devre disi (bir kez gosterilir)."
     );
     disableUltrasonic();
   }
@@ -320,14 +321,18 @@ inline void CARBOT::controlLED(bool state)
 inline void CARBOT::buzzerPlay(int frequency, int duration)
 {
   if (_ultrasonicActive && ultrasonicUsesSharedPins()) {
-    warnSharedPins(
-      "Warning: Buzzer requested; ultrasonic disabled due to shared pins.",
-      "Uyari: Buzzer istendi; paylasilan pinler nedeniyle ultrasonik devre disi."
+    warnSharedPins(_warnedUltrasonicOff,
+      "Warning: LED/Buzzer requested; ultrasonic disabled due to shared pins (shown once).",
+      "Uyari: LED/Buzzer istendi; paylasilan pinler nedeniyle ultrasonik devre disi (bir kez gosterilir)."
     );
     disableUltrasonic();
   }
 #if defined(ESP32)
+  // Ultrasonik kullanildiysa pinMode() buzzer pinini duz GPIO'ya cevirip LEDC
+  // baglantisini koparir; her calista yeniden bagla. / If the ultrasonic was used,
+  // pinMode() turned the buzzer pin into a plain GPIO and cut the LEDC link; re-attach.
   ledcSetup(_buzzerLedcChannel, frequency, 8);
+  ledcAttachPin(_buzzerPin, _buzzerLedcChannel);
   ledcWriteTone(_buzzerLedcChannel, frequency);
   delay(duration);
   ledcWriteTone(_buzzerLedcChannel, 0);
@@ -349,9 +354,9 @@ inline void CARBOT::enableUltrasonic(int echoPin, int trigPin)
   _ultrasonicEchoPin = echoPin;
   _ultrasonicTrigPin = trigPin;
   if (!_ultrasonicActive && ultrasonicUsesSharedPins()) {
-    warnSharedPins(
-      "Warning: Ultrasonic enabled; LED/Buzzer disabled due to shared pins.",
-      "Uyari: Ultrasonik acildi; paylasilan pinler nedeniyle LED/Buzzer devre disi."
+    warnSharedPins(_warnedUltrasonicOn,
+      "Warning: Ultrasonic enabled; LED/Buzzer disabled due to shared pins (shown once).",
+      "Uyari: Ultrasonik acildi; paylasilan pinler nedeniyle LED/Buzzer devre disi (bir kez gosterilir)."
     );
   }
   pinMode(_ultrasonicEchoPin, INPUT);
@@ -397,10 +402,16 @@ inline bool CARBOT::ultrasonicUsesSharedPins() const
           _ultrasonicTrigPin == _ledPin || _ultrasonicTrigPin == _buzzerPin);
 }
 
-inline void CARBOT::warnSharedPins(const char *messageEn, const char *messageTr)
+// Ultrasonik <-> LED/Buzzer gecisi her seferinde seri portu doldurmasin diye
+// her yon icin uyari acilista sadece bir kez yazilir (TR + EN).
+// So switching ultrasonic <-> LED/buzzer does not flood the serial port, the
+// warning for each direction is printed only once per boot (TR + EN).
+inline void CARBOT::warnSharedPins(bool &alreadyWarned, const char *messageEn, const char *messageTr)
 {
-  Serial.println(messageEn);
+  if (alreadyWarned) return;
+  alreadyWarned = true;
   Serial.println(messageTr);
+  Serial.println(messageEn);
 }
 
 // Play the National Anthem / İstiklal Marşı'nı çal

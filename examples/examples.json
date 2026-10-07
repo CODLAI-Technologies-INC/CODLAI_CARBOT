@@ -1,0 +1,601 @@
+{
+  "schema": 1,
+  "library": "CODLAI_CARBOT",
+  "description": {
+    "tr": "Örnek dizini: her örneğin yolu, kartı, gereken modüller/ayarlar, özeti ve seri komutları. Kod başlıklarından otomatik üretilir.",
+    "en": "Example index: path, board, required modules/settings, summary and serial commands of each sketch. Generated from the sketch headers."
+  },
+  "examples": [
+    {
+      "name": "CARBOT_Guard_Mode_Example",
+      "path": "CARBOT_Guard_Mode_Example/CARBOT_Guard_Mode_Example.ino",
+      "category": "Robot",
+      "board": "MINIBOT",
+      "chip": "ESP8266",
+      "robot": "CARBOT",
+      "modules": [],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": true,
+      "title": {
+        "tr": "GERÇEK PROJE - Bekçi Araç Modu (Otomatik nöbet + Manuel sürüş)",
+        "en": "A REAL PROJECT - Guard Car Mode (Automatic watch + Manual driving)"
+      },
+      "summary": {
+        "tr": "OTOMATİK mod = NÖBET: CARBOT sürmez, YERİNDE DURUR ve öndeki ultrasonik sensörüyle etrafını \"gözetler\". Bir şey (örneğin bir el) belirlenen mesafeden daha yakına gelirse: farlar hızla yanıp söner, korna (buzzer) alarm çalar ve araç KISA BİR SÜRE GERİ KAÇAR - tıpkı ürkmüş bir hayvan gibi. Tehlike geçince tekrar nöbetine döner. Açılışta nöbet başlar. MINIBOT üzerindeki butona (B1 / GPIO0) basınca nöbet biter ve MANUEL",
+        "en": "AUTO mode = GUARD DUTY: CARBOT doesn't drive around - it STAYS PUT and \"watches\" its surroundings with the front ultrasonic sensor. If something (e.g. a hand) gets closer than the set distance: the headlights flash rapidly, the horn (buzzer) sounds an alarm, and the car BACKS AWAY BRIEFLY - just like a startled animal. Once the danger passes, it goes back to watch duty. Guard duty starts at power-up. Press the button on the MINIBOT (B1 / GPIO0) to end guard duty and switch"
+      },
+      "wiring": "NOT / NOTE: Ultrasonik sensör far ve korna ile aynı pinleri kullanır; alarm sırasında kütüphane otomatik geçiş yapar ve seri porta kısa bir uyarı yazar. / The ultrasonic sensor shares its pins with the headlights and horn; during an alarm the library switches automatically and prints a short warning. CARBOT'un üzerindeki MINIBOT'a yükleyin (ESP8266). Ultrasonik sensör / ultrasonic sensor: Echo GPIO4 (far / headlights), Trig GPIO5 (buzzer). Direksiyon / steering GPIO13, motor GPIO12 + GPIO14, buton / button GPIO0, mavi LED / blue LED GPIO16.",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "oto",
+          "en": "auto",
+          "description": {
+            "tr": "nöbeti başlat (otomatik mod)",
+            "en": "start guard duty (auto mode)"
+          }
+        },
+        {
+          "tr": "manuel",
+          "en": "manual",
+          "description": {
+            "tr": "nöbeti bitir (manuel mod)",
+            "en": "end guard duty (manual mode)"
+          }
+        },
+        {
+          "tr": "esik 25",
+          "en": "threshold 25",
+          "description": {
+            "tr": "alarm mesafesi (cm, 5-200)",
+            "en": "alarm distance (cm, 5-200)"
+          }
+        },
+        {
+          "tr": "mesafe",
+          "en": "distance",
+          "description": {
+            "tr": "mesafeyi şimdi ölç",
+            "en": "measure the distance now"
+          }
+        },
+        {
+          "tr": "ileri 2",
+          "en": "forward 2",
+          "description": {
+            "tr": "2 saniye ileri (en fazla 10)",
+            "en": "forward for 2 seconds (max 10)"
+          }
+        },
+        {
+          "tr": "geri 2",
+          "en": "back 2",
+          "description": {
+            "tr": "2 saniye geri",
+            "en": "backward for 2 seconds"
+          }
+        },
+        {
+          "tr": "sol",
+          "en": "sag / duz  (left / right / straight)",
+          "description": {
+            "tr": "direksiyon",
+            "en": "steering"
+          }
+        },
+        {
+          "tr": "hiz 180",
+          "en": "speed 180",
+          "description": {
+            "tr": "sürüş hızı (PWM 0-255)",
+            "en": "driving speed (PWM 0-255)"
+          }
+        },
+        {
+          "tr": "dur",
+          "en": "stop",
+          "description": {
+            "tr": "HER ŞEYİ HEMEN DURDUR (manuel moda geçer)",
+            "en": "STOP EVERYTHING NOW (switches to manual)"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "dili değiştir (Türkçe <-> English)",
+            "en": "switch language (Turkish <-> English)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CARBOT_basic_example",
+      "path": "CARBOT_basic_example/CARBOT_basic_example.ino",
+      "category": "Robot",
+      "board": "MINIBOT",
+      "chip": "ESP8266",
+      "robot": "CARBOT",
+      "modules": [],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": true,
+      "title": {
+        "tr": "CARBOT TEMEL ÖRNEK - Otomatik demo + Manuel kontrol",
+        "en": "CARBOT BASIC EXAMPLE - Automatic demo + Manual control"
+      },
+      "summary": {
+        "tr": "Açılışta OTOMATİK mod çalışır: araç sırayla farları yakıp söndürür, kısa bir süre ileri gider, direksiyonu sola/sağa çevirir, \"bip bip\" diyerek geri gider ve korna çalar; sonra baştan başlar. MINIBOT üzerindeki butona (B1 / GPIO0) basınca MANUEL moda geçer: araç",
+        "en": "At startup AUTO mode runs: the car turns the headlights on and off, drives forward briefly, steers left/right, backs up with a \"beep beep\" and sounds the horn; then it starts over. Press the button on the MINIBOT (B1 / GPIO0) to switch to MANUAL mode: the"
+      },
+      "wiring": "NOT / NOTE: Ultrasonik sensör far ve korna ile aynı pinleri kullanır; mesafe ölçülürken far/korna, far/korna kullanılırken mesafe çalışmaz (kütüphane otomatik geçiş yapar ve seri porta uyarı yazar). / The ultrasonic sensor shares its pins with the headlights and horn; the library switches automatically and prints a warning on the serial port. CARBOT'un üzerindeki MINIBOT'a yükleyin (ESP8266). Direksiyon / steering GPIO13, motor GPIO12 + GPIO14, buzzer (Trig) GPIO5, far / headlights (Echo) GPIO4, buton / button GPIO0, mavi LED / blue LED GPIO16. IOTBOT ile kullanım için / to use with an IOTBOT: IOTBOT_CARBOT_Basic_Example.",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "oto",
+          "en": "auto",
+          "description": {
+            "tr": "otomatik mod",
+            "en": "auto mode"
+          }
+        },
+        {
+          "tr": "manuel",
+          "en": "manual",
+          "description": {
+            "tr": "manuel mod",
+            "en": "manual mode"
+          }
+        },
+        {
+          "tr": "ileri 2",
+          "en": "forward 2",
+          "description": {
+            "tr": "2 saniye ileri git (sayı yazmazsanız 2 sn, en fazla 10)",
+            "en": "drive forward for 2 seconds (default 2 s, max 10)"
+          }
+        },
+        {
+          "tr": "geri 2",
+          "en": "back 2",
+          "description": {
+            "tr": "2 saniye geri git",
+            "en": "drive backward for 2 seconds"
+          }
+        },
+        {
+          "tr": "sol",
+          "en": "left",
+          "description": {
+            "tr": "direksiyonu sola çevir",
+            "en": "steer left"
+          }
+        },
+        {
+          "tr": "sag",
+          "en": "right",
+          "description": {
+            "tr": "direksiyonu sağa çevir",
+            "en": "steer right"
+          }
+        },
+        {
+          "tr": "duz",
+          "en": "straight",
+          "description": {
+            "tr": "direksiyonu ortala",
+            "en": "center the steering"
+          }
+        },
+        {
+          "tr": "dur",
+          "en": "stop",
+          "description": {
+            "tr": "HER ŞEYİ HEMEN DURDUR (manuel moda geçer)",
+            "en": "STOP EVERYTHING NOW (switches to manual)"
+          }
+        },
+        {
+          "tr": "hiz 180",
+          "en": "speed 180",
+          "description": {
+            "tr": "sürüş hızı (PWM 0-255)",
+            "en": "driving speed (PWM 0-255)"
+          }
+        },
+        {
+          "tr": "far",
+          "en": "lights",
+          "description": {
+            "tr": "farları aç / kapat",
+            "en": "headlights on / off"
+          }
+        },
+        {
+          "tr": "korna",
+          "en": "horn",
+          "description": {
+            "tr": "korna çal",
+            "en": "sound the horn"
+          }
+        },
+        {
+          "tr": "mesafe",
+          "en": "distance",
+          "description": {
+            "tr": "ultrasonik sensörle mesafe ölç",
+            "en": "measure the distance with the ultrasonic sensor"
+          }
+        },
+        {
+          "tr": "durum",
+          "en": "status",
+          "description": {
+            "tr": "durum bilgisi",
+            "en": "status info"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "dili değiştir (Türkçe <-> English)",
+            "en": "switch language (Turkish <-> English)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "IOTBOT_Armbot_and_Carbot_Wired_Control",
+      "path": "IOTBOT_Armbot_and_Carbot_Wired_Control/IOTBOT_Armbot_and_Carbot_Wired_Control.ino",
+      "category": "Robot",
+      "board": "IOTBOT",
+      "chip": "ESP32",
+      "robot": "CARBOT",
+      "modules": [],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": false,
+      "title": {
+        "tr": "IOTBOT ile ARMBOT ve CARBOT Kablolu Kumanda",
+        "en": "IOTBOT Armbot and Carbot Wired Control"
+      },
+      "summary": {
+        "tr": "IOTBOT, CARBOT'u ya da ARMBOT'u KABLOYLA dogrudan surer. Iki robot da ayni P1-P5 soketlerini (IO25, 26, 27, 32, 33) kullanir: ayni anda TEK robot takilir, mod degistirirken kabloyu da degistirin. Kablosuz surum icin: IOTBOT_Armbot_and_Carbot_Wireless_Control.ino",
+        "en": "The IOTBOT drives CARBOT or ARMBOT directly over a CABLE. Both robots use the same P1-P5 sockets (IO25, 26, 27, 32, 33): plug in ONE robot at a time and swap the cable when you switch modes. Wireless version: IOTBOT_Armbot_and_Carbot_Wireless_Control.ino Kontroller / Controls: Mod / mode: Joystick sol/sag + encoder'a bas; calisirken encoder'a bas = mod degistir CARBOT: Joystick X = direksiyon / steering, Joystick Y = hiz / speed, B1 = korna (nota potansiyometreden) / horn (note from the pot), B2 = far otomatik/elle / lights auto/manual, B3 = far ac/kapa (elle) / lights toggle (manual) ARMBOT: Joystick X = govde / base, Joystick Y = omuz / shoulder, Pot = dirsek / elbow, Encoder = kiskac / gripper, B3 = kiskac ac/kapa / gripper open/close, B1 = korna / horn, B2 = nota / note, Joystick butonu = magaza (demo) modu / store (demo) mode Seri port (115200 baud), Türkçe veya İngilizce / Serial port, Turkish or English:"
+      },
+      "wiring": "",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "durum",
+          "en": "status",
+          "description": {
+            "tr": "mod, far, kol açıları",
+            "en": "mode, lights, arm angles"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "ekran ve seri port dilini değiştir",
+            "en": "switch screen and serial language"
+          }
+        }
+      ]
+    },
+    {
+      "name": "IOTBOT_Armbot_and_Carbot_Wireless_Control",
+      "path": "IOTBOT_Armbot_and_Carbot_Wireless_Control/IOTBOT_Armbot_and_Carbot_Wireless_Control.ino",
+      "category": "Robot",
+      "board": "IOTBOT",
+      "chip": "ESP32",
+      "robot": "CARBOT",
+      "modules": [
+        "espnow",
+        "wifi"
+      ],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": false,
+      "title": {
+        "tr": "IOTBOT ile ARMBOT ve CARBOT Kablosuz Kumanda (ESP-NOW)",
+        "en": "IOTBOT Armbot and Carbot Wireless Control (ESP-NOW Master)"
+      },
+      "summary": {
+        "tr": "Tek bir IOTBOT ile CARBOT'u ve ARMBOT'u kablosuz (ESP-NOW) kontrol eder. Robotlarin uzerindeki MINIBOT'lara su ornekleri yukleyin: CARBOT: MINIBOT_CARBOT_ESP_NOW_Slave_Control.ino ARMBOT: MINIBOT_ARMBOT_ESP_NOW_Slave_Control.ino Hepsi kanal 1'de, yayin (broadcast) adresiyle haberlesir.",
+        "en": "Controls CARBOT and ARMBOT wirelessly (ESP-NOW) from one IOTBOT. Upload these to the MINIBOTs on the robots: CARBOT: MINIBOT_CARBOT_ESP_NOW_Slave_Control.ino ARMBOT: MINIBOT_ARMBOT_ESP_NOW_Slave_Control.ino All talk on channel 1 using the broadcast address. Kontroller / Controls: Mod secimi / mode select : Encoder'i cevir, encoder'a bas / turn the encoder, press it Calisirken / while running: Encoder'a bas = CARBOT <-> ARMBOT CARBOT: Joystick Y = ileri/geri hiz / forward-backward speed, Potansiyometre = direksiyon / steering, Joystick butonu = far / lights, B3 = korna / horn, Joystick butonu + B3 = far otomatik/elle / lights auto/manual ARMBOT: Joystick X ve encoder = govde donusu / base rotation, Joystick Y = omuz / shoulder, Potansiyometre = dirsek / elbow, B3 = kiskac ac/kapa / gripper open/close MAGAZA MODU / STORE MODE: Kontrol edilmeyen robot kendiliginden magaza moduna girer - CARBOT surulurken ARMBOT gosteri yapar, ARMBOT kullanilirken CARBOT (yerinde) gosteri yapar. Robot normal komut alinca hemen cikar. / The robot that is NOT being controlled enters store mode by itself - ARMBOT shows off while CARBOT is driven, CARBOT does an (in-place) show while ARMBOT is used. It leaves store mode as soon as a normal command arrives."
+      },
+      "wiring": "NOT / NOTE: Joystick X (GPIO15) bir ADC2 pinidir; ESP32'de WiFi/ESP-NOW calisirken ADC2 cogu zaman MESGULDUR. X, okumanin gercekten basarili olup olmadigini soyleyen adc2_get_raw() ile denenir: basarili okuma varsa govde joystick X ile doner, yoksa X ortada sayilir ve encoder calismaya devam eder. Ekranda \"X+\" = X okunuyor, \"X-\" = okunamiyor. Mod secimi encoder iledir. / Joystick X (GPIO15) is an ADC2 pin; on the ESP32 ADC2 is usually BUSY while WiFi/ESP-NOW runs. X is tried with adc2_get_raw(), which reports whether the read really succeeded: if it does, the base turns with joystick X, otherwise X counts as centered and the encoder keeps working. Screen: \"X+\" = X readable, \"X-\" = not readable. Mode selection uses the encoder. Protokol / Protocol (CodlaiESPNowMessage.deviceType): 1 = ARMBOT komutu / command (axis1..3 + gripper, 0-180 derece / degrees) 2 = CARBOT komutu / command (axis1 = direksiyon / steering 45-135, axis2 = hiz / speed 0-180: 90 dur / stop, <80 geri / backward, >100 ileri / forward, action 1 korna / horn, 2 far acik / lights on, 3 far kapali / lights off) 3 = CARBOT telemetrisi / telemetry (axis3 = mesafe cm / distance cm, -1 = bilinmiyor / unknown) 4 = ARMBOT \"buradayim\" sinyali / heartbeat Tip 1 veya 2'de action = 10: o robot magaza moduna girsin / that robot enters store mode Seri port (115200 baud), Türkçe veya İngilizce / Serial port, Turkish or English: yardim / help -> komut listesi / command list durum / status -> mod, robot bağlantıları, açılar / mode, robot links, angles dil / lang -> ekran ve seri port dilini değiştir / switch screen and serial language Ekranda / on screen: \"*\" = robottan sinyal var / signal from the robot, \"-\" = yok / none, \"(O)\" / \"(A)\" = far otomatik (LDR) / lights automatic (LDR).",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "durum",
+          "en": "status",
+          "description": {
+            "tr": "mod, robot bağlantıları, açılar",
+            "en": "mode, robot links, angles"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "ekran ve seri port dilini değiştir",
+            "en": "switch screen and serial language"
+          }
+        }
+      ]
+    },
+    {
+      "name": "IOTBOT_CARBOT_Basic_Example",
+      "path": "IOTBOT_CARBOT_Basic_Example/IOTBOT_CARBOT_Basic_Example.ino",
+      "category": "Robot",
+      "board": "IOTBOT",
+      "chip": "ESP32",
+      "robot": "CARBOT",
+      "modules": [],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": true,
+      "title": {
+        "tr": "IOTBOT + CARBOT TEMEL ÖRNEK - Otomatik demo + Manuel kontrol",
+        "en": "IOTBOT + CARBOT BASIC EXAMPLE - Automatic demo + Manual control"
+      },
+      "summary": {
+        "tr": "Açılışta OTOMATİK mod çalışır: araç 1 sn ileri gider, durur, 1 sn geri gider, durur, direksiyonu sola / sağa çevirir ve ortalar; sonra baştan başlar. B3 butonuna basınca MANUEL moda geçer, aracı kart üzerindeki kontrollerle siz sürersiniz. B3'e tekrar basınca otomatik moda döner. Joystick ileri/geri -> ileri / geri hız Joystick sol/sağ -> direksiyon Potansiyometre -> en yüksek hız (yavaş ... hızlı) Joystick butonu -> farları aç / kapat Motor hızı yumuşak değişir (rampa) ve yön değiştirirken önce yavaşlar.",
+        "en": "At startup AUTO mode runs: the car drives forward for 1 s, stops, drives backward for 1 s, stops, steers left / right and centers; then it starts over. Press B3 to switch to MANUAL mode and drive the car with the onboard controls. Press B3 again to go back to auto mode. Joystick forward/back -> forward / backward speed Joystick left/right -> steering Potentiometer -> top speed (slow ... fast) Joystick button -> headlights on / off The motor speed changes smoothly (ramp) and slows down before reversing."
+      },
+      "wiring": "CARBOT kablosunu IOTBOT'un P1-P5 soketlerine takın: direksiyon / steering IO32, motor IO27 + IO33, buzzer IO25, far / headlights IO26. Bu soketlere başka modül takmayın. / Plug the CARBOT cable into the IOTBOT's P1-P5 sockets (pins above). Do not plug other modules into these sockets.",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "oto",
+          "en": "auto",
+          "description": {
+            "tr": "otomatik mod",
+            "en": "auto mode"
+          }
+        },
+        {
+          "tr": "manuel",
+          "en": "manual",
+          "description": {
+            "tr": "manuel mod",
+            "en": "manual mode"
+          }
+        },
+        {
+          "tr": "ileri 2",
+          "en": "forward 2",
+          "description": {
+            "tr": "2 saniye ileri git (en fazla 10)",
+            "en": "drive forward for 2 seconds (max 10)"
+          }
+        },
+        {
+          "tr": "geri 2",
+          "en": "back 2",
+          "description": {
+            "tr": "2 saniye geri git",
+            "en": "drive backward for 2 seconds"
+          }
+        },
+        {
+          "tr": "sol",
+          "en": "left",
+          "description": {
+            "tr": "direksiyonu sola çevir",
+            "en": "steer left"
+          }
+        },
+        {
+          "tr": "sag",
+          "en": "right",
+          "description": {
+            "tr": "direksiyonu sağa çevir",
+            "en": "steer right"
+          }
+        },
+        {
+          "tr": "duz",
+          "en": "straight",
+          "description": {
+            "tr": "direksiyonu ortala",
+            "en": "center the steering"
+          }
+        },
+        {
+          "tr": "dur",
+          "en": "stop",
+          "description": {
+            "tr": "HER ŞEYİ HEMEN DURDUR (manuel moda geçer)",
+            "en": "STOP EVERYTHING NOW (switches to manual)"
+          }
+        },
+        {
+          "tr": "hiz 180",
+          "en": "speed 180",
+          "description": {
+            "tr": "seri sürüş hızı (PWM 0-255)",
+            "en": "serial driving speed (PWM 0-255)"
+          }
+        },
+        {
+          "tr": "far",
+          "en": "lights",
+          "description": {
+            "tr": "farları aç / kapat",
+            "en": "headlights on / off"
+          }
+        },
+        {
+          "tr": "korna",
+          "en": "horn",
+          "description": {
+            "tr": "korna çal",
+            "en": "sound the horn"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "dili değiştir (Türkçe <-> English)",
+            "en": "switch language (Turkish <-> English)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "MINIBOT_CARBOT_ESP_NOW_Slave_Control",
+      "path": "MINIBOT_CARBOT_ESP_NOW_Slave_Control/MINIBOT_CARBOT_ESP_NOW_Slave_Control.ino",
+      "category": "Robot",
+      "board": "MINIBOT",
+      "chip": "ESP8266",
+      "robot": "CARBOT",
+      "modules": [
+        "espnow",
+        "servo",
+        "wifi"
+      ],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": false,
+      "title": {
+        "tr": "CARBOT ESP-NOW Slave Kontrolü",
+        "en": "CARBOT ESP-NOW Slave Control"
+      },
+      "summary": {
+        "tr": "CARBOT üzerindeki MINIBOT'a yüklenir; IOTBOT kumandadan ESP-NOW ile gelen direksiyon, hız, far ve korna komutlarını uygular, mesafe bilgisini geri gönderir. Kumanda: IOTBOT_Armbot_and_Carbot_Wireless_Control.ino yüklü IOTBOT. 500 ms komut gelmezse robot güvenlik için durur; kumanda diğer robotu kullanırken bu robot mağaza moduna (gösteri) geçer. Robot seri porttan sürülmez.",
+        "en": "Upload to the MINIBOT on CARBOT; it applies the steering, speed, lights and horn commands sent by the IOTBOT controller over ESP-NOW and sends the distance back. Controller: an IOTBOT running IOTBOT_Armbot_and_Carbot_Wireless_Control.ino. If no command arrives for 500 ms the robot stops for safety; while the controller uses the other robot this one enters store (show) mode. It is not driven from serial."
+      },
+      "wiring": "",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "yardim",
+          "en": "help",
+          "description": {
+            "tr": "komut listesi",
+            "en": "command list"
+          }
+        },
+        {
+          "tr": "durum",
+          "en": "status",
+          "description": {
+            "tr": "mod, kumanda bağlantısı",
+            "en": "mode, controller link"
+          }
+        },
+        {
+          "tr": "dil",
+          "en": "lang",
+          "description": {
+            "tr": "dili değiştir",
+            "en": "switch language (Türkçe <-> English)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "MINIBOT_CARBOT_Store_Demo_Mode",
+      "path": "MINIBOT_CARBOT_Store_Demo_Mode/MINIBOT_CARBOT_Store_Demo_Mode.ino",
+      "category": "Robot",
+      "board": "MINIBOT",
+      "chip": "ESP8266",
+      "robot": "CARBOT",
+      "modules": [],
+      "needsCredentials": false,
+      "needsPeerMac": false,
+      "autoManual": true,
+      "title": {
+        "tr": "CARBOT MAĞAZA (GÖSTERİ) MODU - kumanda gerekmez",
+        "en": "CARBOT STORE (SHOW) MODE - no controller needed"
+      },
+      "summary": {
+        "tr": "Açılışta OTOMATİK mod çalışır: araç sürekli bir gösteri yapar (ileri, geri, sola dönüp ileri, sağa dönüp geri, korna ve far şovu) ve baştan başlar. Gösteri adım adım (bloklamadan) çalışır. DİKKAT: Araç gösteride gerçekten sürer; masa kenarından uzak tutun. MINIBOT üzerindeki butona (B1 / GPIO0) basınca MANUEL moda geçer: araç",
+        "en": "At startup AUTO mode runs: the car loops a show (forward, backward, turn left and drive forward, turn right and back up, horn and light show). The show runs step by step (without blocking). CAUTION: the car really drives in the show; keep it away from table edges. Press the button on the MINIBOT (B1 / GPIO0) to switch to MANUAL mode: the"
+      },
+      "wiring": "CARBOT'un üzerindeki MINIBOT'a yükleyin (ESP8266). Direksiyon / steering GPIO13, motor GPIO12 + GPIO14, buzzer GPIO5, far / headlights GPIO4, buton / button GPIO0.",
+      "serialBaud": 115200,
+      "commands": [
+        {
+          "tr": "ileri 2",
+          "en": "forward 2, geri 2 / back 2",
+          "description": {
+            "tr": "2 saniye sür (en fazla 10)",
+            "en": "drive for 2 seconds (max 10)"
+          }
+        },
+        {
+          "tr": "sol",
+          "en": "left, sag / right, duz / straight",
+          "description": {
+            "tr": "direksiyon",
+            "en": "steering"
+          }
+        },
+        {
+          "tr": "dur",
+          "en": "stop",
+          "description": {
+            "tr": "HER ŞEYİ HEMEN DURDUR (manuel moda geçer)",
+            "en": "STOP EVERYTHING NOW (switches to manual)"
+          }
+        },
+        {
+          "tr": "hiz 180",
+          "en": "speed 180",
+          "description": {
+            "tr": "sürüş hızı (PWM 0-255)",
+            "en": "driving speed (PWM 0-255)"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-07
+### Added
+- **Ornekler bastan yazildi (7 ornek):** hepsi ayni kurala uyuyor - en ustte `bool turkish` ile TR/EN secimi, calisirken seri porttan `dil`/`lang` ile degisim, iki dilli ve bloklamayan seri komutlar (`yardim`/`help`). Bir seyi suren ornekler OTOMATIK gosteriyle baslar, buton ile MANUEL moda gecilir.
+- Ornekler `Klasor/Klasor.ino` yapisina tasindi: Arduino IDE *Dosya > Ornekler* menusunde hepsi gorunur. `library.json` "examples" alani glob kullaniyor.
+- `examples/examples.json`: her ornegin yolu, karti, gereken moduller/ayarlar, TR/EN ozeti ve seri komutlari (editor.codlai.com "Kutuphane Ornekleri" ekrani icin; `scripts/generate_examples_json.py` ile uretilir).
+
+### Fixed
+- ESP32: ultrasonik kullanildiktan sonra buzzer bir daha calmiyordu (pinMode LEDC baglantisini koparir); her calista yeniden baglaniyor.
+- Ultrasonik <-> LED/buzzer paylasilan pin uyarisi her cagrida seri portu dolduruyordu; her yon icin acilista bir kez yaziliyor.
+- Desteklenmeyen platformda net `#error` mesaji.
+
 ## [1.1.3] - 2026-09-29
 ### Fixed
 - CodlaiESPNowMessage aciklamasi: deviceType 22-29 editor.codlai.com ozel/eslesmeli mesajlasma bloklarina rezerve edildi (22 ozel metin, 23 ozel sayi, 24 eslesme teklifi, 25 eslesme kabulu; 26-29 bos). Kutuphane davranisi degismedi - `espNowAvailable()` hala yalniz 20/21'i gorur.

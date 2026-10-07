@@ -18,6 +18,15 @@
  *   ARMBOT: Joystick X = govde / base, Joystick Y = omuz / shoulder, Pot = dirsek / elbow,
  *           Encoder = kiskac / gripper, B3 = kiskac ac/kapa / gripper open/close,
  *           B1 = korna / horn, B2 = nota / note, Joystick butonu = magaza (demo) modu / store (demo) mode
+ *
+ * Seri port (115200 baud), Türkçe veya İngilizce / Serial port, Turkish or English:
+ *   yardim / help   -> komut listesi / command list
+ *   durum / status  -> mod, far, kol açıları / mode, lights, arm angles
+ *   dil / lang      -> ekran ve seri port dilini değiştir / switch screen and serial language
+ *   (Mağaza modu çalışırken seri komutlar beklemede kalır / serial commands wait
+ *   while store mode is running.)
+ * Ekranda / on screen: "(O)" / "(A)" = far otomatik (LDR) / lights automatic (LDR),
+ * NT = korna notası / horn note.
  */
 
 #include <IOTBOT.h>
@@ -46,7 +55,14 @@ enum AppState
   APP_SELECT = 0,
   APP_RUN = 1
 };
-static bool espNowStarted = false;          // ESP-NOW geç başlatma (ADC2 okuma için)
+
+// Dil seçimi: true = Türkçe, false = English. Seri porttan "dil" / "lang" ile de değişir.
+// Language: true = Turkish, false = English. Can also be changed with "dil" / "lang".
+// (Tiplerden SONRA olmali, bkz. yukaridaki not / must come AFTER the types, see the note above)
+bool turkish = true;
+const char *L(const char *tr, const char *en) { return turkish ? tr : en; }
+
+static bool espNowStarted = false;         // ESP-NOW geç başlatma (ADC2 okuma için)
 
 // ADC2 (GPIO15, GPIO4) Wi-Fi çakışmasını hafifletmek için cache + retry mekanizması
 static int lastGoodJoyX = 2048; // Joystick X varsayılan orta
@@ -153,6 +169,7 @@ inline bool joystickPressedDebounce(bool &prev, unsigned long &lastMs, unsigned 
 // Forward declaration: showArmbotScreen is defined later in this file but
 // storeModeActions may call it, so declare it here for the compiler.
 void showArmbotScreen();
+void ensureArmbotInit(); // Ekrandaki aci alanlarini doldurur / fills the angle fields on screen
 
 void storeModeActions(){
   const int SLOW_SPEED = 8; // larger -> slower movement (ms per step)
@@ -259,7 +276,11 @@ void storeModeActions(){
   }
 
   // When exiting store mode restore ARMBOT screen
+  // (aci alanlari da doldurulur; eskiden hareket edene kadar bos kaliyordu
+  // / the angle fields are filled too; they used to stay blank until a move)
   showArmbotScreen();
+  ensureArmbotInit();
+  iotbot.serialWrite(L(">> Mağaza modu kapalı", ">> Store mode off"));
 }
 // ARMBOT dynamic calibration
 static bool armCalibrated = false;
@@ -341,34 +362,46 @@ inline int mapPotToArmNoteIndex(int pot){
   int idx = pot / seg; if(idx < 0) idx = 0; int maxIdx = (int)(sizeof(ARMBOT_NOTES)/sizeof(ARMBOT_NOTES[0]))-1; if(idx>maxIdx) idx=maxIdx; return idx;
 }
 
+// Far isaretinin yeri ve metni: "(O)" otomatik / "(A)" auto
+// Light auto marker position and text
+static const int LED_AUTO_COL = 11;
+const char *ledAutoMark() { return L("(O)", "(A)"); }
+
+// Satir 1, sutun 0-13: "FAR:AÇIK   (O)" (iotbot.lcdWriteFixedTxt Turkce harfleri dogru gosterir)
+// Row 1, cols 0-13: light state + auto marker (iotbot.lcdWriteFixedTxt shows Turkish letters correctly)
+void drawLedField()
+{
+  iotbot.lcdWriteCR(0, 1, L("FAR:", "LED:"));
+  iotbot.lcdWriteFixedTxt(4, 1, ledState ? L("AÇIK", "ON") : L("KAPALI", "OFF"), 7);
+  iotbot.lcdWriteFixedTxt(LED_AUTO_COL, 1, ledAutoMode ? ledAutoMark() : "", 3);
+}
+
 void showCarbotScreen()
 {
   iotbot.lcdClear();
-  iotbot.lcdWriteCR(0, 0, "MODE:CARBOT  ANG:"); // ANG field at col 16..18
-  // Row 1 layout: LED: ON(A)  NOTE: C4
-  iotbot.lcdWriteCR(0, 1, "LED:");
-  lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);   // positions 4..6
-  iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   "); // auto marker directly after state or spaces
-  iotbot.lcdWriteCR(12, 1, "NOTE:");                    // positions 11..15
-  lcdWriteFixedTxt(17, 1, "---", 3);                     // placeholder; will be replaced immediately
-                                                        // Centered with colons: X:Steer  Y:Drive
-  lcdWriteFixedTxt(2, 2, "X:Steer  Y:Drive", 16);
-  iotbot.lcdWriteCR(0, 3, "B1:Horn  ENC:MODE");
+  iotbot.lcdWriteCR(0, 0, L("MOD:CARBOT   AÇI:", "MODE:CARBOT  ANG:")); // Aci sutun 17 / angle at col 17
+  // Satir 1 / row 1: "FAR:AÇIK   (O) NT:C4"
+  drawLedField();
+  iotbot.lcdWriteCR(14, 1, "NT:");    // Korna notasi / horn note, cols 14..16
+  lcdWriteFixedTxt(17, 1, "---", 3);  // placeholder; will be replaced immediately
+  iotbot.lcdWriteFixedTxt(2, 2, L("X:Direksiyon Y:Hız", "X:Steer  Y:Drive"), 18);
+  iotbot.lcdWriteFixedTxt(0, 3, L("B1:Korna  ENC:MOD", "B1:Horn  ENC:MODE"), 20);
 }
 
 void showArmbotScreen()
 {
   iotbot.lcdClear();
-  iotbot.lcdWriteCR(0, 0, "MODE:ARMBOT NT:");
+  iotbot.lcdWriteCR(0, 0, L("MOD:ARMBOT  NT:", "MODE:ARMBOT NT:"));
   lcdWriteFixedTxt(16, 0, "---", 3); // note placeholder
+  // GÖV=gövde OMZ=omuz DRS=dirsek KSK=kıskaç / ROT=base SHO=shoulder ELB=elbow GRP=gripper
   // Line1: ROT and SHO
-  iotbot.lcdWriteCR(0, 1, "ROT:"); lcdWriteFixedTxt(4, 1, "", 3);
-  iotbot.lcdWriteCR(8, 1, "SHO:");  lcdWriteFixedTxt(12,1, "", 3);
+  iotbot.lcdWriteCR(0, 1, L("GÖV:", "ROT:")); lcdWriteFixedTxt(4, 1, "", 3);
+  iotbot.lcdWriteCR(8, 1, L("OMZ:", "SHO:"));  lcdWriteFixedTxt(12,1, "", 3);
   // Line2: ELB and GRP
-  iotbot.lcdWriteCR(0, 2, "ELB:"); lcdWriteFixedTxt(4, 2, "", 3);
-  iotbot.lcdWriteCR(8, 2, "GRP:"); lcdWriteFixedTxt(12,2, "", 3);
+  iotbot.lcdWriteCR(0, 2, L("DRS:", "ELB:")); lcdWriteFixedTxt(4, 2, "", 3);
+  iotbot.lcdWriteCR(8, 2, L("KSK:", "GRP:")); lcdWriteFixedTxt(12,2, "", 3);
   // Line3: hints
-  iotbot.lcdWriteCR(0, 3, "B1:Horn  B2:Note");
+  iotbot.lcdWriteFixedTxt(0, 3, L("B1:Korna B2:Nota", "B1:Horn  B2:Note"), 20);
 }
 
 void updateModeSelectLine()
@@ -386,9 +419,9 @@ void updateModeSelectLine()
 void showModeSelectScreen()
 {
   iotbot.lcdClear();
-  iotbot.lcdWriteCR(1, 0, "Please Select Mode");
+  iotbot.lcdWriteCR(1, 0, L("Lütfen Mod Seçin", "Please Select Mode"));
   updateModeSelectLine();
-  lcdWriteFixedTxt(0, 3, "   Encoder: Start", 20);
+  iotbot.lcdWriteFixedTxt(0, 3, L(" Joy:Seç  Enc:Başla", " Joy:Pick Enc:Start"), 20);
 }
 
 // Populate NOTE field from potentiometer (used when entering CARBOT)
@@ -450,14 +483,150 @@ void initNoteFromPot()
   lastPotNoteIdx = n0;
 }
 
+// ---------------------------------------------------------------------------
+// Seri komutlar (yalnizca yardim/durum/dil; kontrol dongusunu etkilemez)
+// Serial commands (help/status/lang only; they don't affect the control loop)
+// Seri Monitör'ün satır sonu ayarı ne olursa olsun çalışır (NL, CR, ikisi, hiçbiri).
+// Works with any Serial Monitor line-ending setting (NL, CR, both, none).
+// ---------------------------------------------------------------------------
+String cmdBuffer;
+unsigned long lastCharMs = 0;
+
+// Küçük harfe çevirir ve Türkçe harfleri sadeleştirir: "YARDIM" -> "yardim"
+// Lower-cases and simplifies Turkish letters: "YARDIM" -> "yardim"
+String normalizeCommand(String s)
+{
+  s.trim();
+  s.replace("İ", "i"); s.replace("I", "i"); s.replace("ı", "i");
+  s.replace("Ş", "s"); s.replace("ş", "s");
+  s.replace("Ğ", "g"); s.replace("ğ", "g");
+  s.replace("Ü", "u"); s.replace("ü", "u");
+  s.replace("Ö", "o"); s.replace("ö", "o");
+  s.replace("Ç", "c"); s.replace("ç", "c");
+  s.toLowerCase();
+  return s;
+}
+
+bool readCommand(String &cmd)
+{
+  while (iotbot.serialAvailable() > 0)
+  {
+    char c = Serial.read();
+    lastCharMs = millis();
+    if (c == '\n' || c == '\r')
+    {
+      if (cmdBuffer.length() == 0)
+        continue;
+      cmd = normalizeCommand(cmdBuffer);
+      cmdBuffer = "";
+      return true;
+    }
+    if (cmdBuffer.length() < 40)
+      cmdBuffer += c;
+  }
+  // "Satır sonu yok" seçiliyse: 150 ms sessizlikten sonra komutu kabul et.
+  // "No line ending" selected: accept the command after 150 ms of silence.
+  if (cmdBuffer.length() > 0 && millis() - lastCharMs > 150)
+  {
+    cmd = normalizeCommand(cmdBuffer);
+    cmdBuffer = "";
+    return true;
+  }
+  return false;
+}
+
+void printHelp()
+{
+  iotbot.serialWrite(L("---- KABLOLU KUMANDA - Komutlar ----", "---- WIRED CONTROLLER - Commands ----"));
+  iotbot.serialWrite(L("  yardim : bu liste", "  help   : this list"));
+  iotbot.serialWrite(L("  durum  : mod, far, kol açıları", "  status : mode, lights, arm angles"));
+  iotbot.serialWrite(L("  dil    : English'e geç", "  lang   : switch to Turkish"));
+  iotbot.serialWrite(L("  Mod: joystick sol/sağ + encoder'a bas; çalışırken encoder = mod değiştir",
+                       "  Mode: joystick left/right + press the encoder; while running encoder = switch mode"));
+  iotbot.serialWrite(L("  CARBOT: Joy X=direksiyon, Joy Y=hız, B1=korna, B2=far oto/elle, B3=far aç/kapat",
+                       "  CARBOT: Joy X=steering, Joy Y=speed, B1=horn, B2=lights auto/manual, B3=lights on/off"));
+  iotbot.serialWrite(L("  ARMBOT: Joy X=gövde, Joy Y=omuz, Pot=dirsek, Encoder/B3=kıskaç, B1=korna, B2=nota, Joy butonu=mağaza modu",
+                       "  ARMBOT: Joy X=base, Joy Y=shoulder, Pot=elbow, Encoder/B3=gripper, B1=horn, B2=note, Joy button=store mode"));
+  iotbot.serialWrite(L("  Robotu P1-P5'e takın; mod değiştirirken kabloyu da değiştirin.",
+                       "  Plug the robot into P1-P5; swap the cable when you switch modes."));
+}
+
+void printStatus()
+{
+  String s = String(L("Mod: ", "Mode: ")) +
+             (appState == APP_SELECT ? L("seçim ekranı", "mode select") : (currentMode == MODE_CARBOT ? "CARBOT" : "ARMBOT"));
+  s += String(L(" | far ", " | lights ")) + (ledState ? L("açık", "on") : L("kapalı", "off")) +
+       (ledAutoMode ? L(" (otomatik)", " (auto)") : "");
+  iotbot.serialWrite(s);
+  iotbot.serialWrite(String(L("ARMBOT: gövde ", "ARMBOT: base ")) + armRotAngle + L(" omuz ", " shoulder ") + armShoulderAngle +
+                     L(" dirsek ", " elbow ") + armElbowAngle + L(" kıskaç ", " gripper ") + armGripAngle);
+}
+
+// Ekrani yeni dille yeniden ciz / redraw the screen in the new language
+void redrawScreen()
+{
+  if (appState == APP_SELECT)
+  {
+    showModeSelectScreen();
+  }
+  else if (currentMode == MODE_CARBOT)
+  {
+    showCarbotScreen();
+    initNoteFromPot();
+  }
+  else
+  {
+    showArmbotScreen();
+    lcdWriteFixed(4, 1, armRotAngle, 3);
+    lcdWriteFixed(12, 1, armShoulderAngle, 3);
+    lcdWriteFixed(4, 2, armElbowAngle, 3);
+    lcdWriteFixed(12, 2, armGripAngle, 3);
+    lcdWriteFixedTxt(16, 0, ARMBOT_NOTES[armNoteIdx].name, 3);
+  }
+}
+
+void handleCommand(const String &cmd)
+{
+  if (cmd == "yardim" || cmd == "help" || cmd == "?")
+  {
+    printHelp();
+  }
+  else if (cmd == "durum" || cmd == "status")
+  {
+    printStatus();
+  }
+  else if (cmd == "dil" || cmd == "lang" || cmd == "language")
+  {
+    turkish = !turkish;
+    iotbot.serialWrite(L("Dil: Türkçe", "Language: English"));
+    redrawScreen();
+    printHelp();
+  }
+  else
+  {
+    iotbot.serialWrite(String(L("Bilinmeyen komut: ", "Unknown command: ")) + cmd + L("  (yardim yazın)", "  (type help)"));
+  }
+}
+
+// Mod degisince seri porta yaz / print the mode on the serial port when it changes
+void printMode()
+{
+  iotbot.serialWrite(currentMode == MODE_CARBOT ? L(">> Mod: CARBOT (CARBOT kablosunu P1-P5'e takın)", ">> Mode: CARBOT (plug the CARBOT cable into P1-P5)")
+                                                : L(">> Mod: ARMBOT (ARMBOT kablosunu P1-P5'e takın)", ">> Mode: ARMBOT (plug the ARMBOT cable into P1-P5)"));
+}
+
 void setup()
 {
   carBot.begin();          // CARBOT init (servo + motors)
   iotbot.begin();          // IOTBOT init (LCD + inputs)
+  iotbot.serialStart(115200); // Seri port (yardim/durum/dil) / serial port (help/status/lang)
   carBot.controlLED(true); // ensure LED ON by default
 
   showModeSelectScreen();
   bootMs0 = millis();
+  iotbot.serialWrite(L("IOTBOT kablolu kumanda hazır. Joystick ile mod seçip encoder'a basın.",
+                       "IOTBOT wired controller ready. Pick a mode with the joystick and press the encoder."));
+  printHelp();
 }
 
 void loop()
@@ -465,6 +634,12 @@ void loop()
   // Handle encoder button (active LOW) with boot guard
   bool encPressed = (digitalRead(ENCODER_BUTTON_PIN) == LOW);
   unsigned long now = millis();
+
+  // Seri komutlar: veri yoksa hemen doner / serial commands: returns at once when there is no data
+  String cmd;
+  if (readCommand(cmd))
+    handleCommand(cmd);
+
   if (appState == APP_SELECT)
   {
     // Joystick left/right selects mode
@@ -497,6 +672,7 @@ void loop()
         armCalibrated = false;
       }
       playModeChime(currentMode);
+      printMode();
       appState = APP_RUN;
       encLastMs = now;
     }
@@ -523,6 +699,7 @@ void loop()
         armCalibrated = false;
       }
       playModeChime(currentMode);
+      printMode();
       encLastMs = now;
     }
     encBtnPrev = encPressed;
@@ -536,8 +713,10 @@ void loop()
       if(storeModeActive){
         // Show minimal STORE MODE screen
         iotbot.lcdClear();
-        iotbot.lcdWriteCR(0,0,"MODE:ARMBOT");
-        iotbot.lcdWriteCR(0,1,"   STORE MODE");
+        iotbot.lcdWriteCR(0,0,L("MOD:ARMBOT", "MODE:ARMBOT"));
+        iotbot.lcdWriteCR(0,1,L("   MAĞAZA MODU", "   STORE MODE"));
+        iotbot.lcdWriteCR(0,3,L("Joy butonu: çıkış", "Joy button: exit"));
+        iotbot.serialWrite(L(">> Mağaza modu açık (joystick butonu ile çıkış)", ">> Store mode on (exit with the joystick button)"));
       } else {
         // Restore normal ARMBOT screen
         showArmbotScreen();
@@ -754,7 +933,7 @@ void loop()
     }
     lastBeepMs = now;
     // Update auto marker next to LED state
-    iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
+    drawLedField();
   }
   b2Prev = b2Now;
 
@@ -774,9 +953,8 @@ void loop()
       iotbot.buzzerPlay(600, 80);
       iotbot.buzzerPlay(450, 90);
     }
-    lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);
-    // refresh auto marker
-    iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
+    // LED durumu ve otomatik isareti / LED state and auto marker
+    drawLedField();
     b3LastChange = now;
   }
   else if (ledAutoMode && b3Now && !b3Prev && (now - b3LastChange) > B3_DEBOUNCE_MS)
@@ -794,7 +972,7 @@ void loop()
   if (aBlinkActive && now >= aBlinkNextMs)
   {
     aBlinkPhaseOn = !aBlinkPhaseOn;
-    iotbot.lcdWriteCR(7, 1, aBlinkPhaseOn ? "(A)" : "   ");
+    iotbot.lcdWriteFixedTxt(LED_AUTO_COL, 1, aBlinkPhaseOn ? ledAutoMark() : "", 3);
     aBlinkNextMs = now + 160; // blink period
     if (aBlinkPhaseOn)
     {
@@ -803,7 +981,7 @@ void loop()
       {
         aBlinkActive = false;
         // ensure it ends ON to show AUTO
-        iotbot.lcdWriteCR(7, 1, "(A)");
+        iotbot.lcdWriteFixedTxt(LED_AUTO_COL, 1, ledAutoMark(), 3);
       }
     }
   }
@@ -813,7 +991,11 @@ void loop()
   if (ledAutoMode)
   {
     int newState = autoShouldOn ? 1 : 0;
-    if (newState != lastAutoApplied)
+    // Elle moddan otomatige donuldugunde far LDR'ye uymuyorsa da uygula (eskiden
+    // LDR degismedikce far elle birakildigi gibi kaliyordu).
+    // / Also apply when returning from manual to auto and the light does not match
+    // the LDR (it used to stay as set manually until the LDR changed).
+    if (newState != lastAutoApplied || ledState != (newState == 1))
     {
       ledState = (newState == 1);
       carBot.controlLED(ledState);
@@ -825,9 +1007,8 @@ void loop()
       {
         iotbot.buzzerPlay(450, 70);
       }
-      lcdWriteFixedTxt(4, 1, ledState ? "ON" : "OFF", 3);
-      // refresh auto marker
-      iotbot.lcdWriteCR(7, 1, ledAutoMode ? "(A)" : "   ");
+      // LED durumu ve otomatik isareti / LED state and auto marker
+      drawLedField();
       lastAutoApplied = newState;
     }
   }

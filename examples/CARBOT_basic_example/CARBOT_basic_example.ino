@@ -1,378 +1,396 @@
-#include <CARBOT.h>
+/*
+ * TR: CARBOT TEMEL ÖRNEK - Otomatik demo + Manuel kontrol
+ *  - Açılışta OTOMATİK mod çalışır: araç sırayla farları yakıp söndürür, kısa
+ *    bir süre ileri gider, direksiyonu sola/sağa çevirir, "bip bip" diyerek geri
+ *    gider ve korna çalar; sonra baştan başlar.
+ *  - MINIBOT üzerindeki butona (B1 / GPIO0) basınca MANUEL moda geçer: araç
+ *    hemen durur ve seri komutlarla siz sürersiniz. Butona tekrar basınca
+ *    otomatik moda döner.
+ *  - Motor hızı yumuşak değişir (rampa) ve yön değiştirirken önce yavaşlar.
+ *  - Seri port komutları (115200 baud). Türkçe veya İngilizce yazabilirsiniz:
+ *      yardim    / help        -> komut listesi
+ *      oto       / auto        -> otomatik mod
+ *      manuel    / manual      -> manuel mod
+ *      ileri 2   / forward 2   -> 2 saniye ileri git (sayı yazmazsanız 2 sn, en fazla 10)
+ *      geri 2    / back 2      -> 2 saniye geri git
+ *      sol       / left        -> direksiyonu sola çevir
+ *      sag       / right       -> direksiyonu sağa çevir
+ *      duz       / straight    -> direksiyonu ortala
+ *      dur       / stop        -> HER ŞEYİ HEMEN DURDUR (manuel moda geçer)
+ *      hiz 180   / speed 180   -> sürüş hızı (PWM 0-255)
+ *      far       / lights      -> farları aç / kapat
+ *      korna     / horn        -> korna çal
+ *      mesafe    / distance    -> ultrasonik sensörle mesafe ölç
+ *      durum     / status      -> durum bilgisi
+ *      dil       / lang        -> dili değiştir (Türkçe <-> English)
+ *    Bir sürüş komutu otomatik moddayken gelirse araç manuel moda geçer.
+ *
+ * EN: CARBOT BASIC EXAMPLE - Automatic demo + Manual control
+ *  - At startup AUTO mode runs: the car turns the headlights on and off, drives
+ *    forward briefly, steers left/right, backs up with a "beep beep" and sounds
+ *    the horn; then it starts over.
+ *  - Press the button on the MINIBOT (B1 / GPIO0) to switch to MANUAL mode: the
+ *    car stops at once and you drive it with serial commands. Press the button
+ *    again to go back to auto mode.
+ *  - The motor speed changes smoothly (ramp) and slows down before reversing.
+ *  - Serial port commands (115200 baud). You can type Turkish or English:
+ *      help      / yardim      -> command list
+ *      auto      / oto         -> auto mode
+ *      manual    / manuel      -> manual mode
+ *      forward 2 / ileri 2     -> drive forward for 2 seconds (default 2 s, max 10)
+ *      back 2    / geri 2      -> drive backward for 2 seconds
+ *      left      / sol         -> steer left
+ *      right     / sag         -> steer right
+ *      straight  / duz         -> center the steering
+ *      stop      / dur         -> STOP EVERYTHING NOW (switches to manual)
+ *      speed 180 / hiz 180     -> driving speed (PWM 0-255)
+ *      lights    / far         -> headlights on / off
+ *      horn      / korna       -> sound the horn
+ *      distance  / mesafe      -> measure the distance with the ultrasonic sensor
+ *      status    / durum       -> status info
+ *      lang      / dil         -> switch language (Turkish <-> English)
+ *    A driving command received in auto mode switches the car to manual mode.
+ *
+ * NOT / NOTE: Ultrasonik sensör far ve korna ile aynı pinleri kullanır; mesafe
+ * ölçülürken far/korna, far/korna kullanılırken mesafe çalışmaz (kütüphane
+ * otomatik geçiş yapar ve seri porta uyarı yazar). / The ultrasonic sensor shares
+ * its pins with the headlights and horn; the library switches automatically and
+ * prints a warning on the serial port.
+ *
+ * Bağlantı / Wiring: CARBOT'un üzerindeki MINIBOT'a yükleyin (ESP8266).
+ *   Direksiyon / steering GPIO13, motor GPIO12 + GPIO14, buzzer (Trig) GPIO5,
+ *   far / headlights (Echo) GPIO4, buton / button GPIO0, mavi LED / blue LED GPIO16.
+ *   IOTBOT ile kullanım için / to use with an IOTBOT: IOTBOT_CARBOT_Basic_Example.
+ */
 
-// Uncomment the following line if testing on IOTBOT to enable LCD feedback (IOTBOT ekranında durum görmek için aşağıdaki satırı aktif edin)
-// #define USE_IOTBOT_SCREEN
+#include <CARBOT.h> // CARBOT kütüphanesi / CARBOT library
 
-#ifdef USE_IOTBOT_SCREEN
-#include <IOTBOT.h>
-IOTBOT iotbot;
-#endif
+CARBOT carBot; // CARBOT nesnesi / CARBOT object
 
-#define LED_PIN 16 // Minibot blue LED pin (Minibot mavi led pini)
-#define B1_PIN 0   // Minibot built-in button
+#define LED_PIN 16   // MINIBOT mavi LED / MINIBOT blue LED
+#define BUTTON_PIN 0 // MINIBOT B1 butonu (basılıyken LOW) / MINIBOT B1 button (LOW while pressed)
 
-CARBOT carBot;
+// Dil seçimi: true = Türkçe, false = English. Seri porttan "dil" / "lang" ile de değişir.
+// Language: true = Turkish, false = English. Can also be changed with "dil" / "lang".
+bool turkish = true;
+const char *L(const char *tr, const char *en) { return turkish ? tr : en; }
 
-enum Mode { IDLE_MODE, DEMO_MODE, AUTO_MODE };
-Mode currentMode = IDLE_MODE; // Default is idle / Varsayılan mod durgun (IDLE)
-bool demoDone = false;
-unsigned long sampleCount = 0;
-unsigned long afkTimer = 0; // AFK zamanlayıcısı
+// Direksiyon açıları. Aracınız ters dönüyorsa SOL ve SAĞ değerlerini yer değiştirin.
+// Steering angles. If your car turns the wrong way, swap LEFT and RIGHT.
+const int STEER_CENTER = 90;
+const int STEER_LEFT = 45;
+const int STEER_RIGHT = 135;
+const int DEMO_SPEED = 180; // Demo hızı (PWM, tam hız 255) / demo speed (PWM, full speed 255)
 
-// Button logic variables
-bool b1State = false;
-unsigned long b1Timer = 0;
-int b1Clicks = 0;
-bool b1LongPressed = false;
+// Tip en üstte olmalı (Arduino fonksiyon prototiplerini ilk fonksiyonun önüne ekler).
+// The type must be at the top (Arduino puts function prototypes before the first function).
+// Demo adımı: hız (+ ileri, - geri, 0 dur), direksiyon, far (1 aç, 0 kapat, -1 dokunma),
+// bip Hz (0 = yok), bip tekrar (geri giderken bip bip), süre (ms), mesaj.
+// Demo step: speed (+ forward, - backward, 0 stop), steering, lights (1 on, 0 off, -1 keep),
+// beep Hz (0 = none), repeat beep (beep beep while reversing), duration (ms), message.
+struct CarStep { int speed; int steer; int8_t led; uint16_t beepHz; bool beepRepeat; uint16_t ms; const char *tr; const char *en; };
 
-// Helper function to print status to Serial and IOTBOT LCD (Seri porta ve IOTBOT LCD'ye durum yazdıran yardımcı fonksiyon)
-void showStatus(String title, String detail = "")
-{
-  if (detail == "") {
-    carBot.serialWrite(title);
-  } else {
-    carBot.serialWrite(title + ": " + detail);
-  }
+// ---------------------------------------------------------------------------
+// Motor ve direksiyon / Motor and steering
+// ---------------------------------------------------------------------------
+int driveSpeed = DEMO_SPEED; // "hiz" komutuyla değişir / changed with the "speed" command
+int targetSpeed = 0;         // İstenen hız, işaretli (-255..255) / requested speed, signed
+int appliedSpeed = 0;        // Motora verilen hız / speed applied to the motor
+int steerAngle = STEER_CENTER;
+bool lightsOn = false;
+uint32_t lastRampMs = 0;
+uint32_t driveUntilMs = 0;   // Seri sürüş komutunun bitiş zamanı / end time of a serial drive command
+bool timedDrive = false;
 
-#ifdef USE_IOTBOT_SCREEN
-  iotbot.lcdClear();
-  iotbot.lcdWriteCR(0, 0, title);
-  if (detail != "") {
-    iotbot.lcdWriteCR(0, 1, detail);
-  }
-#endif
+void applyMotor(int speed) {
+  if (speed > 0) carBot.moveForward(speed);
+  else if (speed < 0) carBot.moveBackward(-speed);
+  else carBot.stop();
 }
 
-// Sesli bildirim fonksiyonu (Audible Feedback for Modes)
-void playModeSound(Mode m) {
-    if (m == IDLE_MODE) {
-        // IDLE: Durgun mod (Tek kalın tok ses)
-        carBot.buzzerPlay(200, 150);
-    } else if (m == AUTO_MODE) {
-        // AUTO: Otonom mod (Artan iki savaşçı sesi)
-        carBot.buzzerPlay(500, 100);
-        delay(50);
-        carBot.buzzerPlay(800, 150);
-    } else if (m == DEMO_MODE) {
-        // DEMO: Demo başliyor cıngılı (3 neşeli nota)
-        carBot.buzzerPlay(400, 100);
-        delay(50);
-        carBot.buzzerPlay(500, 100);
-        delay(50);
-        carBot.buzzerPlay(650, 200);
+// Acil durdurma: rampa yok, hemen dur / emergency stop: no ramp, stop at once
+void stopNow() {
+  targetSpeed = 0;
+  appliedSpeed = 0;
+  timedDrive = false;
+  carBot.stop();
+}
+
+void setSteer(int angle) {
+  steerAngle = constrain(angle, 0, 180);
+  carBot.steer(steerAngle);
+}
+
+void setLights(bool on) {
+  lightsOn = on;
+  carBot.controlLED(on);
+}
+
+// Hızı her 15 ms'de biraz değiştir; yön tersse önce 0'a in.
+// Change the speed a little every 15 ms; if the direction flips, go to 0 first.
+void updateRamp(uint32_t now) {
+  if (now - lastRampMs < 15) return;
+  lastRampMs = now;
+  if (appliedSpeed == targetSpeed) return;
+  int goal = targetSpeed;
+  if ((appliedSpeed > 0 && targetSpeed < 0) || (appliedSpeed < 0 && targetSpeed > 0)) goal = 0;
+  if (appliedSpeed < goal) appliedSpeed = min(appliedSpeed + 15, goal);
+  else appliedSpeed = max(appliedSpeed - 15, goal);
+  applyMotor(appliedSpeed);
+}
+
+// ---------------------------------------------------------------------------
+// Otomatik demo / Automatic demo
+// ---------------------------------------------------------------------------
+const CarStep DEMO[] = {
+    {0, STEER_CENTER, 1, 0, false, 1500, "Farlar açık", "Headlights on"},
+    {0, STEER_CENTER, 0, 0, false, 1000, "Farlar kapalı", "Headlights off"},
+    {DEMO_SPEED, STEER_CENTER, -1, 0, false, 1000, "İleri", "Forward"},
+    {0, STEER_CENTER, -1, 0, false, 1000, "Dur", "Stop"},
+    {0, STEER_LEFT, -1, 0, false, 1000, "Direksiyon sola", "Steering left"},
+    {0, STEER_CENTER, -1, 0, false, 800, "Direksiyon ortada", "Steering center"},
+    {-DEMO_SPEED, STEER_CENTER, -1, 1200, true, 1200, "Geri (bip bip)", "Backward (beep beep)"},
+    {0, STEER_CENTER, -1, 0, false, 1000, "Dur", "Stop"},
+    {0, STEER_RIGHT, -1, 0, false, 1000, "Direksiyon sağa", "Steering right"},
+    {0, STEER_CENTER, -1, 0, false, 800, "Direksiyon ortada", "Steering center"},
+    {0, STEER_CENTER, -1, 1000, false, 2000, "Korna", "Horn"},
+};
+const int DEMO_LEN = sizeof(DEMO) / sizeof(DEMO[0]);
+int demoIndex = 0;
+uint32_t stepStartMs = 0;
+uint32_t lastBeepMs = 0;
+
+void startDemoStep(uint32_t now) {
+  const CarStep &st = DEMO[demoIndex];
+  targetSpeed = st.speed;
+  setSteer(st.steer);
+  if (st.led >= 0) setLights(st.led == 1);
+  if (st.beepHz) carBot.buzzerPlay(st.beepHz, st.beepRepeat ? 80 : 300);
+  lastBeepMs = now;
+  stepStartMs = now;
+  Serial.println(String(L("Demo: ", "Demo: ")) + L(st.tr, st.en));
+}
+
+void runAutoDemo(uint32_t now) {
+  const CarStep &st = DEMO[demoIndex];
+  if (st.beepRepeat && now - lastBeepMs >= 300) { // Geri giderken bip bip / beep beep while reversing
+    lastBeepMs = now;
+    carBot.buzzerPlay(st.beepHz, 80);
+  }
+  if (now - stepStartMs >= st.ms) {
+    demoIndex = (demoIndex + 1) % DEMO_LEN;
+    startDemoStep(now);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Seri komut okuyucu / Serial command reader
+// Seri Monitör'ün satır sonu ayarı ne olursa olsun çalışır (NL, CR, ikisi, hiçbiri).
+// Works with any Serial Monitor line-ending setting (NL, CR, both, none).
+// ---------------------------------------------------------------------------
+String cmdBuffer;
+uint32_t lastCharMs = 0;
+
+// Küçük harfe çevirir ve Türkçe harfleri sadeleştirir: "SAĞ" -> "sag"
+// Lower-cases and simplifies Turkish letters: "SAĞ" -> "sag"
+String normalizeCommand(String s) {
+  s.trim();
+  s.replace("İ", "i"); s.replace("I", "i"); s.replace("ı", "i");
+  s.replace("Ş", "s"); s.replace("ş", "s");
+  s.replace("Ğ", "g"); s.replace("ğ", "g");
+  s.replace("Ü", "u"); s.replace("ü", "u");
+  s.replace("Ö", "o"); s.replace("ö", "o");
+  s.replace("Ç", "c"); s.replace("ç", "c");
+  s.toLowerCase();
+  return s;
+}
+
+bool readCommand(String &cmd) {
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    lastCharMs = millis();
+    if (c == '\n' || c == '\r') {
+      if (cmdBuffer.length() == 0) continue;
+      cmd = normalizeCommand(cmdBuffer);
+      cmdBuffer = "";
+      return true;
     }
-}
-
-bool isB1Pressed() {
-#ifdef USE_IOTBOT_SCREEN
-  return iotbot.button1Read();
-#else
-  return (digitalRead(B1_PIN) == LOW);
-#endif
-}
-
-bool isB2Pressed() {
-#ifdef USE_IOTBOT_SCREEN
-  return iotbot.button2Read();
-#else
+    if (cmdBuffer.length() < 40) cmdBuffer += c;
+  }
+  // "Satır sonu yok" seçiliyse: 150 ms sessizlikten sonra komutu kabul et.
+  // "No line ending" selected: accept the command after 150 ms of silence.
+  if (cmdBuffer.length() > 0 && millis() - lastCharMs > 150) {
+    cmd = normalizeCommand(cmdBuffer);
+    cmdBuffer = "";
+    return true;
+  }
   return false;
-#endif
 }
 
-// Checks buttons dynamically. Returns true if a mode switch occurred so callers can abort their sequence.
-bool checkButtons() {
-    bool b1Pressed = isB1Pressed();
-    bool modeChanged = false;
-    
-    // Check for double click timeout (wait 400ms for second click)
-    if (!b1Pressed && b1Clicks > 0 && (millis() - b1Timer > 400)) {
-        if (b1Clicks == 2) {
-            // Double click action: Toggle DEMO_MODE
-            if (currentMode == DEMO_MODE) {
-                currentMode = IDLE_MODE;
-                showStatus("Mod Degisti", "IDLE (Durgun)");
-                playModeSound(IDLE_MODE);
-            } else {
-                currentMode = DEMO_MODE;
-                demoDone = false; // Restart demo
-                showStatus("Mod Degisti", "DEMO MODE");
-                playModeSound(DEMO_MODE);
-            }
-            carBot.stop();
-            afkTimer = millis(); // Kullanıcı aktifliği AFK'yi sıfırlar
-            modeChanged = true;
-        }
-        b1Clicks = 0; // Reset clicks
-    }
+// ---------------------------------------------------------------------------
+// Mesajlar ve modlar / Messages and modes
+// ---------------------------------------------------------------------------
+bool manualMode = false; // false = OTOMATİK, true = MANUEL / false = AUTO, true = MANUAL
 
-    if (b1Pressed && !b1State) {
-        // Button just pressed
-        b1State = true;
-        b1Timer = millis();
-        b1LongPressed = false;
-        afkTimer = millis(); // Kullanıcı aktifliği AFK'yi sıfırlar
-    } else if (b1Pressed && b1State) {
-        // Button held
-        if (!b1LongPressed && (millis() - b1Timer > 1000)) {
-            b1LongPressed = true;
-            // Hold action: Toggle AUTO_MODE
-            if (currentMode == AUTO_MODE) {
-               currentMode = IDLE_MODE;
-               showStatus("Mod Degisti", "IDLE (Durgun)");
-               playModeSound(IDLE_MODE);
-            } else {
-               currentMode = AUTO_MODE;
-               showStatus("Mod Degisti", "AUTO (Otonom)");
-               playModeSound(AUTO_MODE);
-            }
-            carBot.stop();
-            modeChanged = true;
-            b1Clicks = 0; // Cancel any pending clicks
-        }
-    } else if (!b1Pressed && b1State) {
-        // Button just released
-        b1State = false;
-        if (!b1LongPressed) {
-            b1Clicks++;
-            b1Timer = millis(); // Refresh timer for double click window
-        }
-    }
-
-    // For IOTBOT users: B2 functions as a panic button returning to IDLE
-    bool b2Pressed = isB2Pressed();
-    if (b2Pressed && currentMode != IDLE_MODE) {
-        currentMode = IDLE_MODE;
-        showStatus("Mod Degisti", "IDLE (Durgun)");
-        playModeSound(IDLE_MODE);
-        carBot.stop();
-        afkTimer = millis();
-        modeChanged = true;
-    }
-
-    return modeChanged;
+void printHelp() {
+  Serial.println(L("---- CARBOT - Komutlar ----", "---- CARBOT - Commands ----"));
+  Serial.println(L("  yardim          : bu liste", "  help            : this list"));
+  Serial.println(L("  oto / manuel    : otomatik / manuel mod", "  auto / manual   : auto / manual mode"));
+  Serial.println(L("  ileri [sn]      : ileri git (varsayılan 2 sn)", "  forward [s]     : drive forward (default 2 s)"));
+  Serial.println(L("  geri [sn]       : geri git", "  back [s]        : drive backward"));
+  Serial.println(L("  sol / sag / duz : direksiyon", "  left / right / straight : steering"));
+  Serial.println(L("  dur             : HER ŞEYİ DURDUR", "  stop            : STOP EVERYTHING"));
+  Serial.println(L("  hiz 0-255       : sürüş hızı", "  speed 0-255     : driving speed"));
+  Serial.println(L("  far / korna     : farlar / korna", "  lights / horn   : headlights / horn"));
+  Serial.println(L("  mesafe          : mesafe ölç", "  distance        : measure distance"));
+  Serial.println(L("  durum           : durum bilgisi", "  status          : status info"));
+  Serial.println(L("  dil             : English'e geç", "  lang            : switch to Turkish"));
+  Serial.println(L("  Buton (B1)      : OTOMATİK <-> MANUEL", "  Button (B1)     : AUTO <-> MANUAL"));
 }
 
-// Macro to replace delay() with a non-blocking delay that periodically checks for button presses
-#define SMART_DELAY(ms) \
-  do { \
-    unsigned long s = millis(); \
-    while(millis() - s < ms) { \
-      if (checkButtons()) return; \
-      delay(50); \
-    } \
-  } while(0)
-
-void runFullCarbotDemo()
-{
-  showStatus("CARBOT LED", "ON");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.controlLED(true);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("CARBOT LED", "OFF");
-  digitalWrite(LED_PIN, LOW);
-  carBot.controlLED(false);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Hareket", "Ileri (Forward)");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.moveForward();
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Hareket", "Durdu");
-  digitalWrite(LED_PIN, LOW);
-  carBot.stop();
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Direksiyon", "Sola (135 derece)");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.steer(135);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Direksiyon", "Merkez (90)");
-  digitalWrite(LED_PIN, LOW);
-  carBot.steer(90);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Hareket", "Geri (Backward)");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.moveBackward();
-  for (int i = 0; i < 8; i++) {
-      carBot.buzzerPlay(1200, 100);
-      SMART_DELAY(150); if(currentMode != DEMO_MODE) return;
-  }
-
-  showStatus("Hareket", "Durdu");
-  digitalWrite(LED_PIN, LOW);
-  carBot.stop();
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Direksiyon", "Saga (45 derece)");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.steer(45);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Direksiyon", "Merkez (90)");
-  digitalWrite(LED_PIN, LOW);
-  carBot.steer(90);
-  SMART_DELAY(2000); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Buzzer", "Uyari Sesi");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.buzzerPlay(1000, 500);
-  digitalWrite(LED_PIN, LOW);
-  SMART_DELAY(1500); if(currentMode != DEMO_MODE) return;
-
-  showStatus("Buzzer", "Istiklal Marsi");
-  digitalWrite(LED_PIN, HIGH);
-  carBot.istiklalMarsiCal();
-  digitalWrite(LED_PIN, LOW);
+void printStatus() {
+  Serial.println(String(L("Mod: ", "Mode: ")) + (manualMode ? L("MANUEL", "MANUAL") : L("OTOMATİK", "AUTO")) +
+                 L(" | hız ", " | speed ") + appliedSpeed + L(" | direksiyon ", " | steering ") + steerAngle +
+                 L("° | far ", "° | lights ") + (lightsOn ? L("açık", "on") : L("kapalı", "off")) +
+                 L(" | sürüş hızı ", " | drive speed ") + driveSpeed);
 }
 
-void runAutoMode() 
-{
-  float distance = carBot.readUltrasonicCM();
-  
-  if (distance > 0) {
-      showStatus("Otonom Mesafe", String(distance, 1) + " cm");
+void setMode(bool manual, uint32_t now) {
+  manualMode = manual;
+  stopNow();                 // Mod değişince araç önce durur / the car stops when the mode changes
+  setSteer(STEER_CENTER);
+  carBot.buzzerPlay(manual ? 1500 : 1000, 60);
+  if (manual) {
+    Serial.println(L(">> MANUEL mod: aracı seri komutlarla sürün (yardim yazın).",
+                     ">> MANUAL mode: drive the car with serial commands (type help)."));
   } else {
-      showStatus("Otonom Mesafe", "Sensorden okuma yok");
-  }
-  
-  if (distance > 0 && distance < 15.0) {
-      showStatus("Engel Tespit!", "Mesafe: " + String(distance, 1) + "cm");
-      digitalWrite(LED_PIN, HIGH);
-      
-      // Dur
-      carBot.stop();
-      SMART_DELAY(500); if(currentMode != AUTO_MODE) return;
-      
-      // Biraz geri git. Giderken mesafenin 30cm uzerine cikip cikmadigini denetle. Kamyon sesi cikar.
-      showStatus("Kacis Manevrasi", "Geri Gidiliyor");
-      carBot.steer(90);
-      carBot.moveBackward();
-      
-      int backCount = 0;
-      int maxBackSteps = 12; // En fazla ~3 saniye dener (zorlamaması icin timeout)
-      while (backCount < maxBackSteps) {
-          carBot.buzzerPlay(1200, 100);
-          SMART_DELAY(150); if(currentMode != AUTO_MODE) return;
-          
-          float currentDist = carBot.readUltrasonicCM();
-          if (currentDist > 30.0) {
-              // Yeterli donus mesafesi (30cm) elde edildiyse geri gitmeyi aninda kes
-              break; 
-          }
-          backCount++;
-      }
-      
-      // Akıllı Kaçış: Rastgele sağa veya sola dön
-      int rndTurn = random(0, 2); // 0 veya 1
-      int turnAngle = (rndTurn == 0) ? 135 : 45; // Carbotta 135=Sol, 45=Sag
-      String yonStr = (turnAngle == 135) ? "Sol (135)" : "Sag (45)";
-      
-      showStatus("Kacis Manevrasi", "Donus: " + yonStr);
-      carBot.steer(turnAngle);
-      carBot.moveForward();
-      SMART_DELAY(1500); if(currentMode != AUTO_MODE) return;
-      
-      // Direksiyonu topla
-      carBot.steer(90);
-      digitalWrite(LED_PIN, LOW);
-  } else {
-      // Engel yoksa düz git
-      showStatus("Otonom", "Ileri Gidiliyor");
-      carBot.steer(90);
-      carBot.moveForward();
-      
-      // Sensörü anlık okuyabilmek için kısa parça bekleme
-      SMART_DELAY(150); if(currentMode != AUTO_MODE) return;
+    Serial.println(L(">> OTOMATİK mod: araç demoyu kendi kendine yapıyor.", ">> AUTO mode: the car runs the demo by itself."));
+    demoIndex = 0;
+    startDemoStep(now);
   }
 }
 
-void runIdleMode() 
-{
-  float distance = carBot.readUltrasonicCM();
-  if (distance < 0) {
-    showStatus("IDLE Mesafe", "Okuma yok");
-  } else {
-    showStatus("IDLE Mesafe", String(distance, 1) + " cm");
-  }
-
-  // AFK (Durgunluk) Kontrolü - 15 saniyeden uzun süredir butona falan basılmadıysa
-  if (millis() - afkTimer > 15000) {
-    showStatus("Durum", "AFK! Buradayim.");
-    
-    // Küçük iki hızlı flaşör ile robot kendine dikkat çeker
-    digitalWrite(LED_PIN, HIGH);
-    carBot.controlLED(true);
-    SMART_DELAY(75); if(currentMode != IDLE_MODE) return;
-    digitalWrite(LED_PIN, LOW);
-    carBot.controlLED(false);
-    SMART_DELAY(75); if(currentMode != IDLE_MODE) return;
-    digitalWrite(LED_PIN, HIGH);
-    carBot.controlLED(true);
-    SMART_DELAY(75); if(currentMode != IDLE_MODE) return;
-    digitalWrite(LED_PIN, LOW);
-    carBot.controlLED(false);
-    
-    // Minimal uyanış sesi (uyarıcı ping)
-    carBot.buzzerPlay(1500, 50);
-    
-    afkTimer = millis(); // Bir 15 saniye daha geri saymak üzere zamanlayıcıyı tazeler
-  }
-
-  // Cihaz durgun kalmalı
-  carBot.stop();
-  carBot.steer(90);
-
-  // Buton dinlemeyi seri tutmak için küçük süreli delay
-  SMART_DELAY(250);
+void driveCommand(int direction, const String &arg, bool hasValue, uint32_t now) {
+  if (!manualMode) setMode(true, now);
+  int seconds = hasValue ? constrain(arg.toInt(), 1, 10) : 2;
+  targetSpeed = direction * driveSpeed;
+  timedDrive = true;
+  driveUntilMs = now + seconds * 1000UL;
+  Serial.println(String(direction > 0 ? L("İleri ", "Forward ") : L("Geri ", "Backward ")) + seconds +
+                 L(" sn, hız ", " s, speed ") + driveSpeed);
 }
 
-void setup()
-{
-  carBot.serialStart(115200);
-  carBot.begin();
-  
+void handleCommand(const String &cmd, uint32_t now) {
+  int space = cmd.indexOf(' ');
+  String word = (space < 0) ? cmd : cmd.substring(0, space);
+  String arg = (space < 0) ? String("") : cmd.substring(space + 1);
+  arg.trim();
+  bool hasValue = arg.length() > 0 && (isDigit(arg[0]) || arg[0] == '-');
+
+  if (word == "dur" || word == "stop") {
+    // Dur her zaman çalışır / stop always works
+    if (!manualMode) setMode(true, now);
+    stopNow();
+    Serial.println(L("DURDU.", "STOPPED."));
+  } else if (word == "yardim" || word == "help" || word == "?") {
+    printHelp();
+  } else if (word == "oto" || word == "otomatik" || word == "auto") {
+    setMode(false, now);
+  } else if (word == "manuel" || word == "manual") {
+    setMode(true, now);
+  } else if (word == "ileri" || word == "forward") {
+    driveCommand(1, arg, hasValue, now);
+  } else if (word == "geri" || word == "back" || word == "backward") {
+    driveCommand(-1, arg, hasValue, now);
+  } else if (word == "sol" || word == "left") {
+    if (!manualMode) setMode(true, now);
+    setSteer(STEER_LEFT);
+    Serial.println(L("Direksiyon sola.", "Steering left."));
+  } else if (word == "sag" || word == "right") {
+    if (!manualMode) setMode(true, now);
+    setSteer(STEER_RIGHT);
+    Serial.println(L("Direksiyon sağa.", "Steering right."));
+  } else if (word == "duz" || word == "straight" || word == "orta" || word == "center") {
+    if (!manualMode) setMode(true, now);
+    setSteer(STEER_CENTER);
+    Serial.println(L("Direksiyon ortada.", "Steering centered."));
+  } else if ((word == "hiz" || word == "speed") && hasValue) {
+    driveSpeed = constrain(abs(arg.toInt()), 0, 255);
+    if (targetSpeed > 0) targetSpeed = driveSpeed;   // Giderken yeni hız hemen geçerli / applies at once while driving
+    if (targetSpeed < 0) targetSpeed = -driveSpeed;
+    Serial.println(String(L("Sürüş hızı: ", "Drive speed: ")) + driveSpeed);
+  } else if (word == "far" || word == "lights") {
+    if (!manualMode) setMode(true, now);
+    setLights(!lightsOn);
+    Serial.println(lightsOn ? L("Farlar açık.", "Headlights on.") : L("Farlar kapalı.", "Headlights off."));
+  } else if (word == "korna" || word == "horn") {
+    carBot.buzzerPlay(1000, 300);
+  } else if (word == "mesafe" || word == "distance") {
+    lightsOn = false; // Sensör far pinini kullanır / the sensor uses the headlight pin
+    float cm = carBot.readUltrasonicCM();
+    if (cm > 0) Serial.println(String(L("Mesafe: ", "Distance: ")) + String(cm, 1) + " cm");
+    else Serial.println(L("Mesafe okunamadı (sensör takılı mı?).", "No distance reading (is the sensor plugged in?)."));
+  } else if (word == "durum" || word == "status") {
+    printStatus();
+  } else if (word == "dil" || word == "lang" || word == "language") {
+    turkish = !turkish;
+    Serial.println(L("Dil: Türkçe", "Language: English"));
+    printHelp();
+  } else {
+    Serial.println(String(L("Bilinmeyen komut: ", "Unknown command: ")) + cmd + L("  (yardim yazın)", "  (type help)"));
+  }
+}
+
+// ---------------------------------------------------------------------------
+bool lastButton = false;
+uint32_t lastButtonMs = 0;
+
+// Butona yeni basıldıysa true (titreşim süzgeçli) / true on a new press (debounced)
+bool buttonPressed(uint32_t now) {
+  bool pressed = (digitalRead(BUTTON_PIN) == LOW);
+  bool edge = pressed && !lastButton && (now - lastButtonMs) > 200;
+  if (edge) lastButtonMs = now;
+  lastButton = pressed;
+  return edge;
+}
+
+void setup() {
+  carBot.serialStart(115200); // Seri haberleşme / Serial communication
+  carBot.begin();             // CARBOT başlatılıyor / Initialize CARBOT
+  carBot.stop();              // Güvenlik: motorlar durgun başlar / safety: motors start stopped
+  setSteer(STEER_CENTER);
+  setLights(false);
   pinMode(LED_PIN, OUTPUT);
-  pinMode(B1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-#ifdef USE_IOTBOT_SCREEN
-  iotbot.begin();
-#endif
-  
-  // Basit rastgelelik tohumlaması (Random Seed)
-  randomSeed(analogRead(14)); // Boş olması muhtemel kalibre pini örneği
-
-  // Açılış Durumu
-  showStatus("CARBOT Ready", "IDLE MODE (Durgun)");
-  playModeSound(IDLE_MODE); // Açılış onayı sesi
-  afkTimer = millis(); 
+  Serial.println();
+  Serial.println(L("CARBOT temel örnek başladı.", "CARBOT basic example started."));
+  printHelp();
+  setMode(false, millis()); // OTOMATİK modla başla / start in AUTO mode
 }
 
-void loop()
-{
-  // Hangi durum çalışırsa çalışsın butona basıldıysa checkButtons içinden mod güncellenecek
-  if (checkButtons()) return;
+void loop() {
+  uint32_t now = millis();
 
-  if (currentMode == DEMO_MODE) {
-    if (!demoDone) {
-      runFullCarbotDemo();
-      demoDone = true;
-      // Demo bittikten sonra tekrar durgun moda geçer
-      if (currentMode == DEMO_MODE) {
-        currentMode = IDLE_MODE;
-        afkTimer = millis(); 
-        showStatus("Demo Bitti", "IDLE (Durgun)");
-        playModeSound(IDLE_MODE);
-      }
-    }
-  } 
-  else if (currentMode == AUTO_MODE) {
-    runAutoMode();
+  // 1) Buton -> mod değiştir (sadece basıldığı an) / button -> toggle mode (on press only)
+  if (buttonPressed(now)) setMode(!manualMode, now);
+
+  // 2) Seri komutlar / Serial commands
+  String cmd;
+  if (readCommand(cmd)) handleCommand(cmd, now);
+
+  // 3) Otomatik demo veya süreli seri sürüş / automatic demo or timed serial drive
+  if (!manualMode) {
+    runAutoDemo(now);
+  } else if (timedDrive && (int32_t)(now - driveUntilMs) >= 0) {
+    timedDrive = false;
+    targetSpeed = 0;
+    Serial.println(L("Süre doldu, araç duruyor.", "Time is up, the car is stopping."));
   }
-  else if (currentMode == IDLE_MODE) {
-    runIdleMode();
-  }
+
+  // 4) Motor rampası / motor ramp
+  updateRamp(now);
+
+  // 5) Araç hareket ederken mavi LED yanar / blue LED on while the car moves
+  digitalWrite(LED_PIN, appliedSpeed != 0 ? HIGH : LOW);
 }
