@@ -105,6 +105,12 @@ enum AppState
   APP_SELECT = 0,
   APP_RUN = 1
 };
+
+// Enum parametreli fonksiyonlarin prototipleri: Arduino IDE otomatik
+// prototipleri enum tanimindan ONCE yazdigi icin "declared void" hatasi
+// veriyordu. / Prototypes of functions taking an enum: the Arduino IDE
+// writes its auto-prototypes BEFORE the enum ("declared void" error).
+void enterMode(Mode m);
 static AppState appState = APP_SELECT;
 
 // Buttons & Debounce

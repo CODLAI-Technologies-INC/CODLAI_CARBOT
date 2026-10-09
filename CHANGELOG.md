@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-09
+### Fixed
+- Ornekler Arduino IDE / arduino-cli'de "variable or field ... declared void" hatasi veriyordu: Arduino'nun otomatik prototipleri enum tanimindan once yaziliyordu. Enum parametreli fonksiyonlara elle prototip eklendi: IOTBOT_Armbot_and_Carbot_Wireless_Control. (PlatformIO'da derleniyordu.)
+
 ## [1.2.0] - 2026-10-07
 ### Added
 - **Ornekler bastan yazildi (7 ornek):** hepsi ayni kurala uyuyor - en ustte `bool turkish` ile TR/EN secimi, calisirken seri porttan `dil`/`lang` ile degisim, iki dilli ve bloklamayan seri komutlar (`yardim`/`help`). Bir seyi suren ornekler OTOMATIK gosteriyle baslar, buton ile MANUEL moda gecilir.
